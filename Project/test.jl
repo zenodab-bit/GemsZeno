@@ -83,6 +83,7 @@ else
 end
 
 #we keep percentage until the very end
+    #we create a matrix to store the groups percentages
 groups_percentage = zeros(Float64,length(location_groups), length(age_groups_percentage), length(sex_groups_percentage))
 
 for loc in eachindex(location_groups)

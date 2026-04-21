@@ -45,11 +45,10 @@ people.age_group = categorical(
 
 ## == Concert splits ===
 
-#we create a function to split nicely people into groups while keeping the exact total number,
     #and respecting as close as possible the ratio between groups
-function nice_split(total, groups_percentage)
+function nice_split(total, groups_percentage_temp)
     #calculate the raw (not necessarily an integer) number of individuals in each group
-    groups_vector_raw = total * groups_percentage
+    groups_vector_raw = total * groups_percentage_temp
 
     #floor all the values, to get integers
     groups_vector = floor.(Int, groups_vector_raw)
@@ -61,50 +60,59 @@ function nice_split(total, groups_percentage)
     decimals = groups_vector_raw .- groups_vector
 
     #order them from largest to smallest
-    idx = sortperm(decimals, rev= true)
+    idx = sortperm(vec(decimals), rev= true)
 
     #starting from the group that was closer to the next integer, add one element
         #repeat for each element missing
     for i in 1:remainder
-        groups_vector[idx[i]] += 1
+        idx_3D = CartesianIndices(decimals)[idx[i]]
+        groups_vector[idx_3D] += 1
     end
 
     return groups_vector
 
 end
 
+#decide if we have true numbers or percentages for locations
 #we split the population into seated / standing
-if location_group_true == true
-    location_groups = location_groups_number
+if concert_group_true == true
+    concert_groups = concert_groups_number
 else
-    location_groups = nice_split(event_size_total, location_groups_percentage)
+    concert_groups = nice_split(event_size_total, concert_groups_percentage)
 end
 
-groups_total = zeros(Int, length(location_groups), length(age_groups_percentage), length(sex_groups_percentage))
+#we keep percentage until the very end
+    #we create a matrix to store the groups percentages
+groups_percentage = zeros(Float64,length(concert_groups), length(age_groups_percentage), length(sex_groups_percentage))
 
-for loc in eachindex(location_groups)
+for loc in eachindex(concert_groups)
 
-    age_groups = nice_split(location_groups[loc], age_groups_percentage)
+    for i in eachindex(age_groups_percentage)
 
-    for i in eachindex(age_groups)
+        for j in eachindex(sex_groups_percentage)
 
-        sex_groups = nice_split(age_groups[i], sex_groups_percentage)
+            groups_percentage[loc, i, j] = concert_groups_percentage[loc] * age_groups_percentage[i] * sex_groups_percentage[j]
 
-        groups_total[loc, i, 1] = sex_groups[1]
-        groups_total[loc, i, 2] = sex_groups[2]
+        end
     end
+
 end
 
-print(groups_total)
+#now we calculate the total number of people in each group
+groups_total = nice_split(event_size_total, groups_percentage)
+
+println("The Groups Percentages are: ", groups_percentage)
+println(" ")
+print("The Groups Total are: ", groups_total)
 ##
 
 # Reset occupation column
-people.occupation .= 0
+people.concert_attendance .= 0
 
 #function to assign by age group and sex
-function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, location_levels)
+function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, concert_attendance_levels)
     
-    for (i, loc) in enumerate(location_levels)
+    for (i, loc) in enumerate(concert_attendance_levels)
         for (j, age) in enumerate(age_order)
             for (k, sex) in enumerate(sex_levels)
 
@@ -116,7 +124,7 @@ function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, lo
                 candidates = findall(
                     (pop.age_group .== age) .&
                     (pop.sex .== sex) .&
-                    (pop.occupation .== 0)
+                    (pop.concert_attendance .== 0)
                 )
 
                 if length(candidates) < n
@@ -125,7 +133,7 @@ function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, lo
 
                 selected = sample(candidates, n; replace=false)
 
-                pop.occupation[selected] .= loc
+                pop.concert_attendance[selected] .= loc
             end
         end
     end
@@ -139,8 +147,8 @@ assign_concert!(
     groups_total,
     age_order,
     sex_levels,
-    locations_levels
+    concert_attendance_levels
 )
 
-countmap(people.occupation)
-sum((people.age_group .== "31-35") .& (people.sex .== 2) .& (people.occupation .== 1))
+countmap(people.concert_attendance)
+sum((people.age_group .== "31-35") .& (people.sex .== 2) .& (people.concert_attendance .== 1))
