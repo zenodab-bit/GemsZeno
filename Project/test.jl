@@ -1,4 +1,68 @@
-## === Age groups ===
+## === Load all the packages and datasets ===
+
+#all the packages we will need
+using GEMS, Parameters, DataFrames, TOML, Plots, FileIO, 
+    Distributions, CSV, CategoricalArrays, JLD2, Random,
+    StatsBase
+
+#load the people dataset
+people = JLD2.load("/home/bernaze/GemsZeno/Saalekreis-20260417T095425Z-3-001/Saalekreis/people_Saalekreis.jld2")["data"]
+
+#load the setting dataset
+data_settings = JLD2.load("/home/bernaze/GemsZeno/Saalekreis-20260417T095425Z-3-001/Saalekreis/settings_Saalekreis.jld2")["data"]
+
+
+
+
+
+
+## === Setup and configure all the Parameters ===
+
+#here we specify the total number of partecipant at the event
+event_size_total = 1159
+
+
+#here we specify the percentage of seated / standing people
+concert_groups_percentage = [0.6, 0.4]
+
+#or we can specify the exact number of people seated/standing
+concert_groups_number = [583, 576]
+
+#code for type of Attendance
+    #we will use -1 for people not partecipating
+    #1 for people seated and 2 for people standing
+concert_attendance_levels = ["Seated", "Standing"]
+
+#and say if we want to use the number or the percentage
+concert_groups_number_true = true
+
+
+#here we specify the sex group division as a percentage male / female
+sex_groups_percentage = [0.366 , 0.634]
+
+#sex levels
+sex_levels = [1, 2]
+
+
+#here we specify the age group division as a percentage
+age_groups_percentage = [
+0.000,
+0.293,
+0.139,
+0.205,
+0.153,
+0.118,
+0.092,
+0.000
+]
+
+
+
+
+
+
+## === Set the age groups ===
+
 #the experiment invited only people between 18 and 50 years old
     #the age groups are kept in line with the age groups of the experiment
 age_groups = ["<18",
@@ -43,19 +107,27 @@ people.age_group = categorical(
     levels = age_order
 )
 
+
+
+
+
+
 ## == Concert splits ===
 
-#we create a function to split nicely people into groups while keeping the exact total number,
-    #and respecting as close as possible the ratio between groups
+#we create a function to calculate how many people to put in each group
+    #that gives only integers as result, while misplacing the least
+    #amount of individuals
 function nice_split(total, groups_percentage_temp)
     #calculate the raw (not necessarily an integer) number of individuals in each group
     groups_vector_raw = total * groups_percentage_temp
 
+    total_from_raw = sum(groups_vector_raw)
+
     #floor all the values, to get integers
     groups_vector = floor.(Int, groups_vector_raw)
 
-    #calculate how many missing partecipants
-    remainder = total - sum(groups_vector)
+    #calculate how many individuals have not being places
+    remainder = total_from_raw - sum(groups_vector)
 
     #calculate the decimals
     decimals = groups_vector_raw .- groups_vector
@@ -65,91 +137,119 @@ function nice_split(total, groups_percentage_temp)
 
     #starting from the group that was closer to the next integer, add one element
         #repeat for each element missing
-    for i in 1:remainder
+    for i in 1:Int(remainder)
         idx_3D = CartesianIndices(decimals)[idx[i]]
         groups_vector[idx_3D] += 1
     end
 
+    #return the vectors containing the numbers of individuals in each group
     return groups_vector
 
 end
 
-#decide if we have true numbers or percentages for locations
-#we split the population into seated / standing
-if location_group_true == true
-    location_groups = location_groups_number
+#depending if we have a number or percentage for the categories
+    #we split the population into seated / standing
+if concert_groups_number_true == true
+    concert_groups = concert_groups_number
 else
-    location_groups = nice_split(event_size_total, location_groups_percentage)
+    concert_groups = nice_split(event_size_total, concert_groups_percentage)
 end
 
-#we keep percentage until the very end
+#we keep percentages until the very end
     #we create a matrix to store the groups percentages
-groups_percentage = zeros(Float64,length(location_groups), length(age_groups_percentage), length(sex_groups_percentage))
+groups_percentage = zeros(Float64,length(concert_groups), length(age_groups_percentage), length(sex_groups_percentage))
 
-for loc in eachindex(location_groups)
-
+#for each concert setting (i.e standing or sitting, or different sectors)
+for loc in eachindex(concert_groups)
+    #for each age group
     for i in eachindex(age_groups_percentage)
-
+        #for each sex group
         for j in eachindex(sex_groups_percentage)
-
-            groups_percentage[loc, i, j] = location_groups_percentage[loc] * age_groups_percentage[i] * sex_groups_percentage[j]
+            #we calculate how many people (as a percentage) go into this specific group 
+                #given by setting, age and gender
+            groups_percentage[loc, i, j] = concert_groups[loc] * age_groups_percentage[i] * sex_groups_percentage[j]
 
         end
     end
-
 end
 
-#now we calculate the total number of people in each group
-groups_total = nice_split(event_size_total, groups_percentage)
+if concert_groups_number_true == true
+    #if true we already have numbers of partecipants, not percentages
+        #we just need to transform them to integers
+    groups_total = nice_split(1, groups_percentage)
+else
+    #we still have percentages not integers
+    groups_total = nice_split(event_size_total, groups_percentage)
+end
 
-println("The Groups Percentages are: ", groups_percentage)
-println(" ")
-print("The Groups Total are: ", groups_total)
-##
 
-# Reset occupation column
-people.occupation .= 0
+
+
+
+## === Assign people to each group
+
+#create/reset concert column
+people.concert_attendance .= "Not attending"
 
 #function to assign by age group and sex
-function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, location_levels)
+function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, concert_attendance_levels)
     
-    for (i, loc) in enumerate(location_levels)
+    #for each different level/setting at the concert
+    for (i, loc) in enumerate(concert_attendance_levels)
+        #and for each age group
         for (j, age) in enumerate(age_order)
+            #and for each sex group
             for (k, sex) in enumerate(sex_levels)
-
-                n = groups_total[i, j, k]
-                #skip if nothing to assign
+                
+                #we check if it is an empty category 
+                    #and we skip it if it is
+                n = groups_total[i, j, k] 
                 n == 0 && continue
 
-                # find eligible candidates
+                #if not, find eligible candidates
                 candidates = findall(
                     (pop.age_group .== age) .&
                     (pop.sex .== sex) .&
-                    (pop.occupation .== 0)
-                )
+                    (pop.concert_attendance .== "Not attending")
+                    )
 
+                #we check if there are enough candidates
                 if length(candidates) < n
+                    #if not return an error
                     error("Not enough candidates for (age=$age, sex=$sex, loc=$loc)")
                 end
 
+                #if we have enough candidates, pick them at random without replacement
                 selected = sample(candidates, n; replace=false)
 
-                pop.occupation[selected] .= loc
+                #for those selected, assign their concert setting (i.e seated, standing)
+                pop.concert_attendance[selected] .= loc
             end
         end
     end
 
+    #return our dataframe
     return pop
 end
 
-##
+#run the function to assign people
 assign_concert!(
     people,
     groups_total,
     age_order,
     sex_levels,
-    locations_levels
+    concert_attendance_levels
 )
 
-countmap(people.occupation)
-sum((people.age_group .== "31-35") .& (people.sex .== 1) .& (people.occupation .== 1))
+
+
+
+
+
+## === Run some validation tests
+
+countmap(people.concert_attendance)
+sum((people.age_group .== "31-35") .& (people.sex .== 2) .& (people.concert_attendance .== "Seated"))
+
+
+
