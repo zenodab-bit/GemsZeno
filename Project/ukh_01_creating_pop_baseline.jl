@@ -2,7 +2,7 @@ using GEMS, Parameters, DataFrames, TOML, Plots, FileIO, Distributions, CSV, Cat
 BASE_FOLDER = dirname(dirname(pathof(GEMS)))
 
 # individuals analysis
-people = JLD2.load("localdata/Saalekreis/people_Saalekreis.jld2")["data"]
+people = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis.jld2")["data"]
 
 
 using DataFrames, StatsBase, Random
@@ -148,7 +148,7 @@ other_male   = other_total .- other_female
 sum(other_total)
 
 #--------finding offices with 20 or more people---------------
-data_settings = JLD2.load("localdata/Saalekreis/settings_Saalekreis.jld2")["data"]
+data_settings = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/settings_Saalekreis.jld2")["data"]
 offices = data_settings[:Office] 
 offices_bigger20 = offices.id[length.(offices.individuals) .> 20]
 
@@ -317,8 +317,8 @@ vscodedisplay(people)
 # saving updated information
 
 data = people
-JLD2.@save "localdata/people_Saalekreis_base.jld2" data
-newpeople = JLD2.load("localdata/people_Saalekreis_base.jld2")["data"]
+JLD2.@save "/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_example.jld2" data
+newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_example.jld2")["data"]
 
 subset(newpeople,:occupation => ByRow(x -> x > 1000), skipmissing=true) |>vscodedisplay
 ############------------------###########################

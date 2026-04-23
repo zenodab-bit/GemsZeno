@@ -6,10 +6,10 @@ using GEMS, Parameters, DataFrames, TOML, Plots, FileIO,
     StatsBase
 
 #load the people dataset
-people = JLD2.load("/home/bernaze/GemsZeno/Saalekreis-20260417T095425Z-3-001/Saalekreis/people_Saalekreis.jld2")["data"]
+people = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis.jld2")["data"]
 
 #load the setting dataset
-data_settings = JLD2.load("/home/bernaze/GemsZeno/Saalekreis-20260417T095425Z-3-001/Saalekreis/settings_Saalekreis.jld2")["data"]
+data_settings = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/settings_Saalekreis.jld2")["data"]
 
 
 
@@ -315,7 +315,7 @@ using StatsPlots
 ## === Saving updated information ===
 
 data = people
-JLD2.@save "/home/bernaze/GemsZeno/Datastorage/people_Saalekreis_base.jld2" data
-newpeople = JLD2.load("/home/bernaze/GemsZeno/Datastorage/people_Saalekreis_base.jld2")["data"]
+JLD2.@save "/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_base.jld2" data
+newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_base.jld2")["data"]
 
 subset(newpeople,:concert_attendance => ByRow(x -> x == "Seated" || x == "Standing"), skipmissing=true) |>vscodedisplay

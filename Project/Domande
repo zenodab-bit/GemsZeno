@@ -1,0 +1,4 @@
+does the function sample_contacts rewrite the base sample_contacts function?
+    will i lose that for the global setting?
+
+Individual is a struct in gem, can i modify it? add stuff?
