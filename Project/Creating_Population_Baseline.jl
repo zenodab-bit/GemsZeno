@@ -288,26 +288,26 @@ sort!(standing_counts, :age_group)
 
 using StatsPlots
 
-@df seated_counts bar(
-    :age_group,
-    :count,
-    xlabel = "Age group",
-    ylabel = "Number of seated",
-    title = "Number of seated people by Age Group",
-    legend = false,
-    bar_width = 0.7
-)
+#@df seated_counts bar(
+#    :age_group,
+#    :count,
+#    xlabel = "Age group",
+#    ylabel = "Number of seated",
+#    title = "Number of seated people by Age Group",
+#    legend = false,
+#    bar_width = 0.7
+#)
 
 
-@df standing_counts bar(
-    :age_group,
-    :count,
-    xlabel = "Age group",
-    ylabel = "Number of standing",
-    title = "Number of standing people by Age Group",
-    legend = false,
-    bar_width = 0.7
-)
+#@df standing_counts bar(
+#    :age_group,
+#    :count,
+#    xlabel = "Age group",
+#    ylabel = "Number of standing",
+#    title = "Number of standing people by Age Group",
+#    legend = false,
+#    bar_width = 0.7
+#)
 
 
 
@@ -315,7 +315,10 @@ using StatsPlots
 ## === Saving updated information ===
 
 data = people
-JLD2.@save "/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_base.jld2" data
-newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_base.jld2")["data"]
+JLD2.@save "/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_concert.jld2" data
+newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_concert.jld2")["data"]
 
-subset(newpeople,:concert_attendance => ByRow(x -> x == "Seated" || x == "Standing"), skipmissing=true) |>vscodedisplay
+#subset(newpeople,:concert_attendance => ByRow(x -> x == "Seated" || x == "Standing"), skipmissing=true) |>vscodedisplay
+
+## === Lets remove some columns ===
+#newpople_short = select!(newpeople, [:SchoolYear, :SchoolComplex, :Workplace, :WorkplaceSite, :Municipality, :Department])
