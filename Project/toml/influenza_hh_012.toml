@@ -1,0 +1,171 @@
+[Simulation]
+    #seed = 
+    tickunit = 'd'
+    GlobalSetting = false
+    startdate = "2024-01-01"
+    enddate   = "2024-12-31"
+    [Simulation.StartCondition]
+        type = "InfectedFraction"
+    [Simulation.StartCondition.parameters]
+        fraction = 0.001
+        pathogen = "Influenza"   # BE AWARE, THAT NAME MUST BE THE SAME AS IN TOML SECTION
+
+    [Simulation.StopCriterion]
+        type = "TimesUp"
+    [Simulation.StopCriterion.parameters]
+        limit = 301
+
+[Pathogens]
+
+
+[Pathogens.Influenza]
+    muParameter = [0.0198, 0.0005]
+    hhParameter = [0.09, 0.0005]
+    wpParameter = [0.045, 0.0005]
+    scParameter = [0.045, 0.0005]
+
+[Pathogens.Influenza.transmission_function]
+    type = "SettingRate"
+[Pathogens.Influenza.transmission_function.parameters]
+    household_rate = 0.12
+    schoolclass_rate = 0.03    
+    schoolyear_rate = 0.03
+    schoolcomplex_rate = 0.0
+    school_rate = 0.03
+    office_rate = 0.105
+    department_rate = 0.105
+    workplacesite_rate = 0.0
+    workplace_rate = 0.105
+    municipality_rate = 0.0255
+    global_rate = 0.0
+
+[Pathogens.Influenza.progressions]
+
+[Pathogens.Influenza.progressions.Asymptomatic]
+exposure_to_infectiousness_onset = { distribution = "Poisson", parameters = [1] }
+infectiousness_onset_to_recovery = { distribution = "Poisson", parameters = [4] }
+
+[Pathogens.Influenza.progressions.Symptomatic]
+exposure_to_infectiousness_onset = { distribution = "Poisson", parameters = [1] }
+infectiousness_onset_to_symptom_onset = { distribution = "Poisson", parameters = [1] }
+symptom_onset_to_recovery = { distribution = "Poisson", parameters = [4] }
+
+[Pathogens.Influenza.progressions.Severe]
+exposure_to_infectiousness_onset = { distribution = "Poisson", parameters = [1] }
+infectiousness_onset_to_symptom_onset = { distribution = "Poisson", parameters = [1] }
+symptom_onset_to_severeness_onset = { distribution = "Poisson", parameters = [2] }
+severeness_onset_to_severeness_offset = { distribution = "Poisson", parameters = [7] }
+severeness_offset_to_recovery = { distribution = "Poisson", parameters = [1] }
+
+[Pathogens.Influenza.progressions.Critical]
+death_probability = 0.22
+exposure_to_infectiousness_onset = { distribution = "Poisson", parameters = [1] }
+infectiousness_onset_to_symptom_onset = { distribution = "Poisson", parameters = [1] }
+symptom_onset_to_severeness_onset = { distribution = "Poisson", parameters = [2] }
+severeness_onset_to_hospital_admission = { distribution = "Poisson", parameters = [1] }
+hospital_admission_to_icu_admission = { distribution = "Poisson", parameters = [1] }
+icu_admission_to_icu_discharge = { distribution = "Poisson", parameters = [4] }
+icu_discharge_to_hospital_discharge = { distribution = "Poisson", parameters = [2] }
+hospital_discharge_to_severeness_offset = 0
+severeness_offset_to_recovery = { distribution = "Poisson", parameters = [1] }
+icu_admission_to_death = { distribution = "Poisson", parameters = [10] }
+
+
+            
+[Pathogens.Influenza.progression_assignment]
+type = "AgeBasedProgressionAssignment"
+
+[Pathogens.Influenza.progression_assignment.parameters]
+age_groups = ["0-4", "5-49", "50-64", "65-"]
+progression_categories = ["Asymptomatic", "Symptomatic", "Severe", "Critical"]
+stratification_matrix = [
+    [0.15, 0.83537, 0.0133, 0.00133],
+    [0.30, 0.69516, 0.0044, 0.00044],
+    [0.15, 0.839, 0.01, 0.001],
+    [0.10, 0.8483, 0.047, 0.0047],
+]
+
+[Pathogens.Influenza.self_quarantine_rate]
+    distribution = "Uniform"
+    parameters = [0.0,0.4]
+
+
+[Settings]
+
+    [Settings.Household]
+        [Settings.Household.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.Household.contact_sampling_method.parameters]
+                    contactparameter = 2.0
+
+    [Settings.Office]
+        [Settings.Office.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.Office.contact_sampling_method.parameters]
+                    contactparameter = 3.0
+                    
+    [Settings.School]
+        [Settings.School.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.School.contact_sampling_method.parameters]
+                    contactparameter = 0.6
+
+    [Settings.SchoolClass]
+        [Settings.SchoolClass.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.SchoolClass.contact_sampling_method.parameters]
+                    contactparameter = 6.0
+
+    [Settings.Municipality]
+        [Settings.Municipality.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.Municipality.contact_sampling_method.parameters]
+                    contactparameter = 5.0
+
+    [Settings.WorkplaceSite]
+        [Settings.WorkplaceSite.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.WorkplaceSite.contact_sampling_method.parameters]
+                    contactparameter = 0.0
+
+    [Settings.SchoolComplex]
+        [Settings.SchoolComplex.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.SchoolComplex.contact_sampling_method.parameters]
+                    contactparameter = 0.0
+
+    [Settings.SchoolYear]
+        [Settings.SchoolYear.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.SchoolYear.contact_sampling_method.parameters]
+                    contactparameter = 1.4
+
+    [Settings.Department]
+        [Settings.Department.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.Department.contact_sampling_method.parameters]
+                    contactparameter = 0.7
+
+    [Settings.Workplace]
+        [Settings.Workplace.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.Workplace.contact_sampling_method.parameters]
+                    contactparameter = 0.3
+                    
+    [Settings.GlobalSetting]
+        [Settings.GlobalSetting.contact_sampling_method]
+                type = "ContactparameterSampling"
+
+                [Settings.GlobalSetting.contact_sampling_method.parameters]
+                    contactparameter = 0.0
+

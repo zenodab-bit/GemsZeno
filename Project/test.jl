@@ -1,52 +1,77 @@
-## === Start ===
-
-@with_kw struct ConcertContacts <: ContactSamplingMethod
-    distribution::String = "Poisson"
-    mean_number_of_contacts_seated::Float64
-    mean_number_of_contacts_standing::Float64
-
-    seDistribution::Distribution = eval(Meta.parse(distribution))(mean_number_of_contacts_seated)
-    stDistribution::Distribution = eval(Meta.parse(distribution))(mean_number_of_contacts_standing)
+##
+# define custom transmission struct
+@with_kw struct SettingRate <: TransmissionFunction
+household_rate::Float64
+schoolclass_rate::Float64 
+schoolyear_rate::Float64
+schoolcomplex_rate::Float64
+school_rate::Float64
+office_rate::Float64
+department_rate::Float64
+workplacesite_rate::Float64
+workplace_rate::Float64
+municipality_rate::Float64
+global_rate::Float64
 end
 
-function GEMS.sample_contacts(concert_contacts::ConcertContacts,
-    setting::Setting, ego::Individual, present_individuals::Vector{Individual}, tick::Int16)
+# override transmission probability function for your struct
+function GEMS.transmission_probability(
+transFunc::SettingRate,
+infecter::Individual,
+infected::Individual,
+setting::Setting,
+tick::Int16
+)::Float64
 
-    if isempty(present_individuals)
-        throw(ArgumentError("No Individual is present in $setting. Please provide a Setting, where at least 1 Individual is present!"))
-    end
-
-    if length(present_individuals) == 1
-        return Individual[]
-    end
-
-    num_of_contacts = 0
-
-    
-    
+# natural immunity
+if number_of_infections(infected) > 0
+return 0.0
 end
 
-attending_concert = newpeople[newpeople.concert_attendance .!= "Not attending", :]
-all_individuals_list = [row_to_individual(row) for row in eachrow(attending_concert)]
+if isa(setting, Household)
+return transFunc.household_rate
 
-concert_attendance_dict = Dict{Int, String}()
-for row in eachrow(newpeople)
-    concert_attendance_dict[row.id] = row.concert_attendance
+elseif isa(setting, SchoolClass)
+return transFunc.schoolclass_rate
+
+elseif isa(setting, SchoolYear)
+return transFunc.schoolyear_rate
+
+elseif isa(setting, SchoolComplex)
+return transFunc.schoolcomplex_rate
+
+elseif isa(setting, School)
+return transFunc.school_rate
+
+elseif isa(setting, Office)
+return transFunc.office_rate
+
+elseif isa(setting, Department)
+return transFunc.department_rate
+
+elseif isa(setting, WorkplaceSite)
+return transFunc.workplacesite_rate
+
+elseif isa(setting, Workplace)
+return transFunc.workplace_rate
+
+elseif isa(setting, Municipality)
+return transFunc.municipality_rate
+
+elseif isa(setting, GlobalSetting)
+return transFunc.global_rate
+
+else
+return 0.0 # safe fallback
 end
-
-## === Run ===
-concert_method = ConcertContacts(
-    mean_number_of_contacts_seated = 11,
-    mean_number_of_contacts_standing = 26,
-    distribution = "Poisson"
-)
-
-all_contacts = Dict{Int, Vector{Individual}}()
-
-for ego in all_individuals_list
-    present_individuals = all_individuals_list
-
-    contacts = sample_contacts_concert(concert_method, ego, present_individuals, concert_attendance_dict)
-    println("Contacts for individual $(ego.id): $contacts")
-    all_contacts[ego.id] = contacts
 end
+###########################
+
+##
+sim_Saalekreis_Hospital = Simulation(
+    configfile = "/home/bernaze/GemsZeno/Project/toml/influenza_hh_012.toml",
+    population = "/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_example.jld2", 
+    settingsfile = "/home/bernaze/GemsZeno/Project/Datastorage/settings_Saalekreis.jld2",
+    label = "Hospital simulation")
+run!(sim_Saalekreis_Hospital)
+rd_Saalekreis_Hospital = ResultData(sim_Saalekreis_Hospital)

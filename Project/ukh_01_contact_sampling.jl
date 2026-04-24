@@ -1,5 +1,5 @@
 ######################################## Contacts Sampling ############################################
-
+##
 @with_kw struct FixedContacts <: ContactSamplingMethod
     distribution::String = "Poisson"
     mean_number_of_contacts_weekday::Float64

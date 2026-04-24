@@ -1,3 +1,4 @@
+##
 using GEMS, Parameters, DataFrames, TOML, Plots, FileIO, Distributions, CSV, CategoricalArrays, JLD2, Random
 BASE_FOLDER = dirname(dirname(pathof(GEMS)))
 
@@ -322,5 +323,5 @@ newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekr
 
 subset(newpeople,:occupation => ByRow(x -> x > 1000), skipmissing=true) |>vscodedisplay
 ############------------------###########################
-
+##
 vscodedisplay(offices)
