@@ -30,4 +30,5 @@ function GEMS.transmission_probability(transFunc::SettingRate,
     end
 
 end
-##
+## end
+print("END CUSTOM TRANSMISSION")

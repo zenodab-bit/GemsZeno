@@ -14,14 +14,8 @@
     [Simulation.StopCriterion]
         type = "TimesUp"
         [Simulation.StopCriterion.parameters]
-            limit = 365
+            limit = 46
 
-[Population]
-    n = 100_000
-    avg_household_size = 3
-    avg_office_size = 5
-    avg_school_size = 100
-    empty = false
 
 [Pathogens]
 
@@ -30,7 +24,8 @@
             type = "SettingRate"
             [Pathogens.Covid19.transmission_function.parameters]
                 general_rate = 0.1
-                household_rate = 0.3
+                seated_rate = 1
+                standing_rate = 0
 
         [Pathogens.Covid19.progressions]
 

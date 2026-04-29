@@ -83,3 +83,6 @@ for ego in all_individuals_list
     println("Contacts for individual $(ego.id): $contacts")
     all_contacts[ego.id] = contacts
 end
+
+## end
+print("END CONTACT SAMPLING")

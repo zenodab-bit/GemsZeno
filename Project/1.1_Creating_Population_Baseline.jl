@@ -322,3 +322,6 @@ newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekr
 
 ## === Lets remove some columns ===
 #newpople_short = select!(newpeople, [:SchoolYear, :SchoolComplex, :Workplace, :WorkplaceSite, :Municipality, :Department])
+
+## end
+print("END CREATING POPULATION BASELINE")

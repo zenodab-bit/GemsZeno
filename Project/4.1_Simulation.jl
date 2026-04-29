@@ -19,3 +19,11 @@ rd_concert2 = ResultData(sim_concert2)
 ## === Plot ===
 gp = gemsplot([rd_concert, rd_concert2])
 png(gp, "/home/bernaze/GemsZeno/Project/Plots/plot_1.png")
+
+##
+
+inds1 = individuals(sim_concert)
+inds2 = individuals(sim_concert2)
+
+sum(infected.(inds1))
+sum(infected.(inds2))
