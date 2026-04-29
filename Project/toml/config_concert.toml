@@ -14,7 +14,7 @@
     [Simulation.StopCriterion]
         type = "TimesUp"
         [Simulation.StopCriterion.parameters]
-            limit = 100
+            limit = 46
 
 
 [Pathogens]
