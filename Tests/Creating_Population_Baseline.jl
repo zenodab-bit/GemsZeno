@@ -31,7 +31,7 @@ concert_groups_number = [583, 576]
 #code for type of Attendance
     #we will use -1 for people not partecipating
     #1 for people seated and 2 for people standing
-concert_attendance_levels = ["Seated", "Standing"]
+concert_attendance_levels = [1, 2]
 
 #and say if we want to use the number or the percentage
 concert_groups_number_true = true
@@ -121,6 +121,7 @@ function nice_split(total, groups_percentage_temp)
     #calculate the raw (not necessarily an integer) number of individuals in each group
     groups_vector_raw = total * groups_percentage_temp
 
+    #calculate the ceil (integer) needed to contain all the people
     total_from_raw = ceil(sum(groups_vector_raw))
 
     #floor all the values, to get integers
@@ -135,8 +136,8 @@ function nice_split(total, groups_percentage_temp)
     #order them from largest to smallest
     idx = sortperm(vec(decimals), rev= true)
 
-    #starting from the group that was closer to the next integer, add one element
-        #repeat for each element missing
+    #starting from the group that was closer to the next integer (i.e. largest remainder), add one element
+        #repeat as many time as elements missing
     for i in 1:Int(remainder)
         idx_3D = CartesianIndices(decimals)[idx[i]]
         groups_vector[idx_3D] += 1
@@ -173,14 +174,16 @@ for loc in eachindex(concert_groups)
     end
 end
 
+#we need to store all those numbers
 groups_total = zeros(Int,length(concert_groups), length(age_groups_percentage), length(sex_groups_percentage))
 
+#check if we have percentages or numbers of partecipant
 if concert_groups_number_true == true
     #if true we already have numbers of partecipants, not percentages
         #we just need to transform them to integers
     groups_total = nice_split(1, groups_percentage)
 else
-    #we still have percentages not integers
+    #if not, calculate the number needed
     groups_total = nice_split(event_size_total, groups_percentage)
 end
 
@@ -190,10 +193,10 @@ end
 
 ## === Assign people to each group
 
-#create/reset concert column
-people.concert_attendance .= "Not attending"
+#reset occupation column, we will use this to store concert attendace. -1 represent not going
+people.occupation .= -1
 
-#function to assign by age group and sex
+#function to assign individuals to a partecipation group by age group and sex
 function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, concert_attendance_levels)
     
     #for each different level/setting at the concert
@@ -212,7 +215,7 @@ function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, co
                 candidates = findall(
                     (pop.age_group .== age) .&
                     (pop.sex .== sex) .&
-                    (pop.concert_attendance .== "Not attending")
+                    (pop.occupation .== -1)
                     )
 
                 #we check if there are enough candidates
@@ -225,7 +228,7 @@ function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, co
                 selected = sample(candidates, n; replace=false)
 
                 #for those selected, assign their concert setting (i.e seated, standing)
-                pop.concert_attendance[selected] .= loc
+                pop.occupation[selected] .= loc
             end
         end
     end
@@ -250,33 +253,37 @@ assign_concert!(
 
 ## === Run some validation tests and plots
 
-countmap(people.concert_attendance)
-sum((people.age_group .== "31-35") .& (people.sex .== 2) .& (people.concert_attendance .== "Seated"))
+#count how many people are not going, oging and sitting, going and standing
+countmap(people.occupation)
+#count how many people are in a specific subgroup
+sum((people.age_group .== "31-35") .& (people.sex .== 2) .& (people.occupation .== 1))
 
-seated = people[people.concert_attendance .== "Seated", : ]
+#store all people sitting
+seated = people[people.occupation .== 1, : ]
 
-seated.age_group = age_group_label.(seated.age)
+#group sitting people by age
 seated_counts = combine(
     groupby(seated, :age_group),
     nrow => :count
 )
 
-
-standing = people[people.concert_attendance .== "Standing", :]
-
-standing.age_group = age_group_label.(standing.age)
-standing_counts = combine(
-    groupby(standing, :age_group),
-    nrow => :count
-)
-
-
+#change it to be a categorical variable
 seated_counts.age_group = categorical(
     seated_counts.age_group;
     ordered = true,
     levels = age_order
 )
 
+#store al standing people
+standing = people[people.occupation .== 2, :]
+
+#group standing people by age
+standing_counts = combine(
+    groupby(standing, :age_group),
+    nrow => :count
+)
+
+#change it to be a categorical variable
 standing_counts.age_group = categorical(
     standing_counts.age_group;
     ordered = true,
@@ -318,7 +325,7 @@ data = people
 JLD2.@save "/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_concert.jld2" data
 newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_concert.jld2")["data"]
 
-#subset(newpeople,:concert_attendance => ByRow(x -> x == "Seated" || x == "Standing"), skipmissing=true) |>vscodedisplay
+#subset(newpeople,:occupation => ByRow(x -> x == "Seated" || x == "Standing"), skipmissing=true) |>vscodedisplay
 
 ## === Lets remove some columns ===
 #newpople_short = select!(newpeople, [:SchoolYear, :SchoolComplex, :Workplace, :WorkplaceSite, :Municipality, :Department])

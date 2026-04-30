@@ -14,7 +14,7 @@
     [Simulation.StopCriterion]
         type = "TimesUp"
         [Simulation.StopCriterion.parameters]
-            limit = 46
+            limit = 50
 
 
 [Pathogens]
@@ -25,7 +25,7 @@
             [Pathogens.Covid19.transmission_function.parameters]
                 general_rate = 0.1
                 seated_rate = 1
-                standing_rate = 0
+                standing_rate = 1
 
         [Pathogens.Covid19.progressions]
 
