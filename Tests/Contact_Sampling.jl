@@ -18,74 +18,39 @@
 end
 
 #function to sample contacts for a given individual at the concert
-function sample_contacts_concert(concert_contacts::ConcertContacts,
-    ego::Individual, present_individuals::Vector{Individual})
-    
-    #check if there are any individuals in the setting
+function sample_contacts(
+    concert_contacts::ConcertContacts,
+    setting::Setting,
+    ego::Individual,
+    present_individuals::Vector{Individual},
+    tick::Int16
+)
+    # Check if there are any individuals in the setting
     if isempty(present_individuals)
-        throw(ArgumentError("No Individuals are present.
-        Please provide a list of individuals."))
+        throw(ArgumentError("No individuals are present. Please provide a list of individuals."))
     end
 
-    #if only ego is present, return an empty list
+    # If only ego is present, return an empty list
     if length(present_individuals) == 1
         return Individual[]
     end
 
-    #determine the number of contacts for ego based on their "occupation", (i.e. sitting or standing)
-    if ego.occupation == 1
-        num_of_contacts = rand(concert_contacts.seDistribution)
+    # Filter to include only individuals in the same section as ego (and exclude ego)
+    same_section_individuals = filter(x -> x.occupation == ego.occupation && x != ego, present_individuals)
+    isempty(same_section_individuals) && return Individual[]
+
+    # Determine the number of contacts for ego based on their occupation
+    num_of_contacts = if ego.occupation == 1
+        rand(concert_contacts.seDistribution)
     elseif ego.occupation == 2
-        num_of_contacts = rand(concert_contacts.stDistribution)
-    else 
-        num_of_contacts = 0
+        rand(concert_contacts.stDistribution)
+    else
+        @warn "Individual $(ego.id) has invalid occupation $(ego.occupation). Assigning 0 contacts."
+        0
     end
 
-    #filter present_individuals to only include the one in the same "section" as ego
-    same_section_individuals = filter(x -> x.occupation == ego.occupation && x != ego, present_individuals)
-
-    #sample without replacement
-    contacts = sample(same_section_individuals, num_of_contacts; replace = false)
-
-    #return the list of sampled contacts
-    return contacts
-end
-## === Convert rows to individuals ===
-function row_to_individual(row)
-    return Individual(
-        id = row.id,
-        sex = row.sex,
-        age = row.age,
-        occupation = row.occupation
-        )
-end
-
-#filter the dataset to include only individuals attending the concert
-attending_concert = newpeople[newpeople.occupation .!= -1, :]
-
-#convert each row attending the concert to an individual object
-all_individuals_list = [row_to_individual(row) for row in eachrow(attending_concert)]
-
-## === Run ===
-
-#
-concert_method = ConcertContacts(
-    mean_number_of_contacts_seated = 11,
-    mean_number_of_contacts_standing = 26,
-    distribution = "Poisson"
-)
-
-#dictionary to store contacts for each individual
-all_contacts = Dict{Int, Vector{Individual}}()
-
-#for each individual in the concert, sample their ontacts
-for ego in all_individuals_list
-    present_individuals = all_individuals_list
-
-    #sample contacts for the current individual (ego)
-    contacts = sample_contacts_concert(concert_method, ego, present_individuals)
-    #println("Contacts for individual $(ego.id): $contacts")
-    all_contacts[ego.id] = contacts
+    # Sample contacts without replacement
+    return sample(same_section_individuals, num_of_contacts; replace=false)
 end
 
 ## end

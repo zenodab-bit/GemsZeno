@@ -13,6 +13,8 @@ import GEMS.transmission_probability
     #transmission rate for standing individuals
     standing_rate::Float64
 
+    try_rate::Float64
+
 end
 
 # override transmission probability function for your struct
@@ -26,7 +28,7 @@ function GEMS.transmission_probability(transFunc::SettingRate,
     end
 
     #at the concert tick
-    if tick == 45
+    if tick == 30
 
         #if both individuals are seated return seated transmission
         if infecter.occupation == 1 && infected.occupation == 1

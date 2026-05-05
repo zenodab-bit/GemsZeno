@@ -11,7 +11,7 @@ people = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis
 #load the setting dataset
 data_settings = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/settings_Saalekreis.jld2")["data"]
 
-
+ 
 
 
 
@@ -19,8 +19,8 @@ data_settings = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/settings_S
 ## === Setup and configure all the Parameters ===
 
 #here we specify the total number of partecipant at the event
-event_size_total = 1159
-
+event_size_total = 12000
+#1159
 
 #here we specify the percentage of seated / standing people
 concert_groups_percentage = [0.6, 0.4]
@@ -34,7 +34,7 @@ concert_groups_number = [583, 576]
 concert_attendance_levels = [1, 2]
 
 #and say if we want to use the number or the percentage
-concert_groups_number_true = true
+concert_groups_number_true = false
 
 
 #here we specify the sex group division as a percentage male / female
@@ -325,10 +325,6 @@ data = people
 JLD2.@save "/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_concert.jld2" data
 newpeople = JLD2.load("/home/bernaze/GemsZeno/Project/Datastorage/people_Saalekreis_concert.jld2")["data"]
 
-#subset(newpeople,:occupation => ByRow(x -> x == "Seated" || x == "Standing"), skipmissing=true) |>vscodedisplay
-
-## === Lets remove some columns ===
-#newpople_short = select!(newpeople, [:SchoolYear, :SchoolComplex, :Workplace, :WorkplaceSite, :Municipality, :Department])
 
 ## end
 print("END CREATING POPULATION BASELINE")

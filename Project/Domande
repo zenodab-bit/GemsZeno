@@ -1,4 +1,10 @@
 does the function sample_contacts rewrite the base sample_contacts function?
     will i lose that for the global setting?
 
-Individual is a struct in gem, can i modify it? add stuff?
+does the struct settingRate and the function transmission probability override the base one?
+
+which base should i keep?
+
+in your example of contact sampling, the one with weekday and weekend, does it choose contacts between the all population? or it still uses settings?
+
+the iccupation variable, is it used to run the simulations?

@@ -23,9 +23,10 @@
         [Pathogens.Covid19.transmission_function]
             type = "SettingRate"
             [Pathogens.Covid19.transmission_function.parameters]
-                general_rate = 0.1
+                general_rate = 0.05
                 seated_rate = 0
                 standing_rate = 0
+                try_rate = 1
 
         [Pathogens.Covid19.progressions]
 
