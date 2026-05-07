@@ -1,47 +1,52 @@
 ## === Start ===
+import GEMS: sample_contacts
 
-@with_kw struct ConcertContacts <: ContactSamplingMethod
-    distribution::String = "Poisson"
-    mean_number_of_contacts_seated::Float64
-    mean_number_of_contacts_standing::Float64
-
-    seDistribution::Distribution = eval(Meta.parse(distribution))(mean_number_of_contacts_seated)
-    stDistribution::Distribution = eval(Meta.parse(distribution))(mean_number_of_contacts_standing)
+# Define a custom struct for concert contact sampling,
+# inheriting from ContactSamplingMethod in GEMS
+mutable struct ConcertContacts <: GEMS.ContactSamplingMethod
 end
 
-function sample_contacts_concert(concert_contacts::ConcertContacts,
-    ego::Individual, present_individuals::Vector{Individual}, concert_attendance_dict::Dict{Int, String})
-    rand(concert_contacts.seDistribution)
-    
-    #check if there are any indi in the setting
-    if isempty(present_individuals)
-        throw(ArgumentError("No Individuals are present.
-        Please provide a list of individuals."))
+# Function to sample contacts for a given individual at the concert
+function GEMS.sample_contacts(
+    concert_contacts::ConcertContacts,
+    setting::GEMS.GlobalSetting,
+    individual_index::Int64,
+    present_individuals::Vector{Individual},
+    tick::Int16;
+    rng::AbstractRNG = Random.default_rng()
+)
+    # Get the ego individual (the individual for whom contacts are being sampled)
+    ego = present_individuals[individual_index]
+
+    # Skip if ego is not at the concert (occupation -1: not attending, 1: sitting, 2: standing)
+    if ego.occupation != 1 && ego.occupation != 2
+        return Individual[]  # Early return: no contacts for non-concert individuals
     end
 
-    #if only ego is present, return an empty list
-    if length(present_individuals) == 1
-        return Individual[]
-    end
+    # Filter to include only individuals in the same section as ego (and exclude ego)
+    same_section_individuals = filter(x -> x.occupation == ego.occupation && x != ego, present_individuals)
+    isempty(same_section_individuals) && return Individual[]
 
-    #set the number of contacts for ego to 0
-    num_of_contacts = 0
+    # Define the mean number of contacts for sitting and standing individuals
+    mean_number_of_contacts_sitting::Float64 = 11
+    mean_number_of_contacts_standing::Float64 = 26
 
-    #determine the number of contacts for ego depending if it is seated or standing
-    if concert_attendance_dict[ego.id] == "Seated"
-        num_of_contacts = rand(concert_contacts.seDistribution)
+    # Sample the number of contacts for the ego individual based on their section
+    num_of_contacts = if ego.occupation == 1
+        rand(rng, Poisson(mean_number_of_contacts_sitting))  # Sitting section
+    elseif ego.occupation == 2
+        rand(rng, Poisson(mean_number_of_contacts_standing))  # Standing section
     else
-        num_of_contacts = rand(concert_contacts.stDistribution)
+        0  # Fallback (shouldn't happen due to early return)
     end
 
-    #initialiye the result vectors
+    # Initialize a vector to store the sampled contacts
     res = Vector{Individual}(undef, num_of_contacts)
     cnt = 0
-
-    #sample contacts from present_individuals, excluding ego
+    # Randomly select contacts from the same section
     while cnt < num_of_contacts
-        contact = rand(present_individuals)
-        if contact!=ego
+        contact = rand(rng, same_section_individuals)
+        if contact != ego
             res[cnt + 1] = contact
             cnt += 1
         end
@@ -50,39 +55,5 @@ function sample_contacts_concert(concert_contacts::ConcertContacts,
     return res
 end
 
-## === I dont know yet
-function row_to_individual(row)
-    return Individual(
-        id = row.id,
-        sex = row.sex,
-        age = row.age,
-    )
-end
-
-attending_concert = newpeople[newpeople.concert_attendance .!= "Not attending", :]
-all_individuals_list = [row_to_individual(row) for row in eachrow(attending_concert)]
-
-concert_attendance_dict = Dict{Int, String}()
-for row in eachrow(newpeople)
-    concert_attendance_dict[row.id] = row.concert_attendance
-end
-
-## === Run ===
-concert_method = ConcertContacts(
-    mean_number_of_contacts_seated = 11,
-    mean_number_of_contacts_standing = 26,
-    distribution = "Poisson"
-)
-
-all_contacts = Dict{Int, Vector{Individual}}()
-
-for ego in all_individuals_list
-    present_individuals = all_individuals_list
-
-    contacts = sample_contacts_concert(concert_method, ego, present_individuals, concert_attendance_dict)
-    println("Contacts for individual $(ego.id): $contacts")
-    all_contacts[ego.id] = contacts
-end
-
-## end
+## End of script
 print("END CONTACT SAMPLING")

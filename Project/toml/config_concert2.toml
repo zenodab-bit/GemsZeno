@@ -14,7 +14,7 @@
     [Simulation.StopCriterion]
         type = "TimesUp"
         [Simulation.StopCriterion.parameters]
-            limit = 46
+            limit = 60
 
 
 [Pathogens]
@@ -24,8 +24,8 @@
             type = "SettingRate"
             [Pathogens.Covid19.transmission_function.parameters]
                 general_rate = 0.1
-                seated_rate = 0
-                standing_rate = 0
+                sitting_rate = 0.5
+                standing_rate = 0.5
 
         [Pathogens.Covid19.progressions]
 
@@ -243,7 +243,7 @@
                     
     [Settings.GlobalSetting]
         [Settings.GlobalSetting.contact_sampling_method]
-                type = "ContactparameterSampling"
+                type = "ConcertContacts"
                 
                 [Settings.GlobalSetting.contact_sampling_method.parameters]
                     contactparameter = 1.0
