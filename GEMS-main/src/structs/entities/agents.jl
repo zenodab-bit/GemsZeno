@@ -11,10 +11,10 @@ export age, id, education, occupation, sex
 # behaviour
 export mandate_compliance, mandate_compliance!, social_factor, social_factor!
 # settings
-export setting_id, setting_id!, household_id, class_id, office_id, municipality_id
+export setting_id, setting_id!, household_id, class_id, office_id, municipality_id, settings_tuple
 export is_working, is_student, has_municipality
 # health status
-export comorbidities
+export comorbidities, has_comorbidity
 export is_infected, isinfected, infected, infected!
 export is_infectious, isinfectious, infectious, infectious!
 export is_exposed, isexposed, exposed
@@ -92,8 +92,8 @@ A type to represent individuals, that act as agents inside the simulation.
         to mandates. Can be anywhere between -1 and 1 with neutral state is 0.
 
 - Health Status
-    - `comorbidities::Vector{Bool}`: Indicating prevalence of certain health conditions. True,
-        if the individual is preconditioned with the comorbidity associated to the array index.
+    - `comorbidities::UInt16`: Indicating prevalence of certain health conditions. True,
+        if the individual is preconditioned with the comorbidity associated to the bit.
     - `dead::Bool`: Flag indicating individual's decease
     - `infected::Bool`: Flag indicating individual's infection status
 
@@ -152,7 +152,7 @@ A type to represent individuals, that act as agents inside the simulation.
     mandate_compliance::Float32 = 0 # 4 bytes
 
     # HEALTH STATUS
-    comorbidities::Vector{Bool} = Vector{Bool}() # 40 + n bytes
+    comorbidities::UInt16 = 0 # 2 bytes
     infected::Bool = false # 1 byte
     infectious::Bool = false # 1 byte
     symptomatic::Bool = false # 1 byte
@@ -373,6 +373,20 @@ function municipality_id(individual::Individual)::Int32
 end
 
 """
+    settings_tuple(individual::Individual)
+
+Returns all individual's associated setting IDs as a Tuple.
+"""
+function settings_tuple(individual::Individual)
+    return (
+        (Household, individual.household),
+        (Office, individual.office),
+        (SchoolClass, individual.schoolclass),
+        (Municipality, individual.municipality)
+    )
+end
+
+"""
     setting_id(individual::Individual, type::DataType)
 
 Returns the id of the setting of `type` associated with the individual. If the settingtype
@@ -443,8 +457,24 @@ has_municipality(individual::Individual) = municipality_id(individual) != DEFAUL
 
 Returns an individual's comorbidities.
 """
-function comorbidities(individual::Individual)::Array{Bool}
+function comorbidities(individual::Individual)::UInt16
     return individual.comorbidities
+end
+
+"""
+    has_comorbidity(individual::Individual, n::Int16)
+
+Returns `true` if the individual has the `n`-th comorbidity flag set. 
+`n` is 1-indexed and should be between 1 and 16.
+"""
+function has_comorbidity(individual::Individual, n::Int16)
+    # Ensure n is in the valid range for a UInt16
+    if !(1 <= n <= 16)
+        throw(ArgumentError("Comorbidity index must be between 1 and 16."))
+    end
+    
+    # Shift a bit to the (n-1)th position and apply bitwise AND
+    return (individual.comorbidities & (UInt16(1) << (n - 1))) != 0
 end
 
 """
@@ -1327,8 +1357,8 @@ end
 """
     reset!(individual::Individual)
 
-Resets all non-static values like the disease progression timing. The individual will get
-back into a state where it was never infected, vaccinated, tested, etc.
+Resets all non-static values like the disease progression timing.
+The individual will get back into a state where it was never infected, vaccinated, tested, etc.
 """
 function reset!(individual::Individual)
     # health status
@@ -1337,14 +1367,17 @@ function reset!(individual::Individual)
     individual.symptomatic = false
     individual.severe = false
     individual.hospitalized = false
-    individual.isicu = false
+    individual.icu = false
     individual.ventilated = false
     individual.dead = false
+    individual.detected = false
+    
     # infections status
     individual.pathogen_id = DEFAULT_PATHOGEN_ID
-    individual.disease_state = DISEASE_STATE_NOT_INFECTED
+    individual.infection_id = DEFAULT_INFECTION_ID
     individual.infectiousness = 0
     individual.number_of_infections = 0
+ 
     # reset disease progression
     individual.exposure = DEFAULT_TICK
     individual.infectiousness_onset = DEFAULT_TICK
@@ -1356,16 +1389,20 @@ function reset!(individual::Individual)
     individual.ventilation_admission = DEFAULT_TICK
     individual.ventilation_discharge = DEFAULT_TICK
     individual.hospital_discharge = DEFAULT_TICK
+    individual.severeness_offset = DEFAULT_TICK
     individual.recovery = DEFAULT_TICK
     individual.death = DEFAULT_TICK
+    
     # TESTING
     individual.last_test = DEFAULT_TICK
     individual.last_test_result = false
     individual.last_reported_at = DEFAULT_TICK
+    
     # VACCINATION
     individual.vaccine_id = DEFAULT_VACCINE_ID
     individual.number_of_vaccinations = 0
     individual.vaccination_tick = DEFAULT_TICK
+    
     # INTERVENTIONS
     individual.quarantine_status = QUARANTINE_STATE_NO_QUARANTINE
     individual.quarantine_release_tick = DEFAULT_TICK

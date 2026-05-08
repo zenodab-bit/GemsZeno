@@ -18,6 +18,8 @@ module GEMS
     using JLD2
     using JSON
     using LoggingExtras
+    using Optimization
+    using OptimizationCMAEvolutionStrategy
     using PkgVersion
     using Parameters
     using Plots
@@ -74,6 +76,9 @@ module GEMS
     include("runinfo.jl")
 
     function __init__()
+        # Initialize thread-local RNGs
+        append!(_DEFAULT_GEMS_RNGS, [Random.Xoshiro() for _ in 1:Threads.maxthreadid()])
+
         offending_lines = check_naked_rng_calls()
 
         if !isempty(offending_lines)

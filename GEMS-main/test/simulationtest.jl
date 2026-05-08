@@ -311,6 +311,38 @@
             run!(sim)
             @test cntr == 5
         end
+        @testset "Reinitialize" begin
+            sim = Simulation(pop_size=100)
+            
+            # Simulate a few steps manually
+            increment!(sim)
+            increment!(sim)
+            @test tick(sim) == 2
+            
+            # Infect the first individual
+            ind = individuals(sim)[1]
+            infected!(ind, true)
+            
+            # Add data to loggers
+            log!(deathlogger(sim), Int32(1), Int16(2))
+            @test length(deathlogger(sim)) == 1
+            
+            # Add NPI triggers and strategies
+            test_strategy = IStrategy("test strategy", sim)
+            add_symptom_trigger!(sim, SymptomTrigger(test_strategy))
+            @test length(symptom_triggers(sim)) == 1
+            @test length(strategies(sim)) == 1
+            
+            # Reinitialize the simulation
+            reinitialize!(sim)
+            
+            # Assert simulation was reset properly
+            @test tick(sim) == 0
+            @test !isinfected(individuals(sim)[1])
+            @test length(deathlogger(sim)) == 0
+            @test length(symptom_triggers(sim)) == 0
+            @test length(strategies(sim)) == 0
+        end
     
     end
 
@@ -374,6 +406,83 @@
         end
     end
 
+    @testset "Calibration" begin
+        
+        @testset "Error Metrics" begin
+            # Test norm calculations used in calibration
+            ref_ts = [1.0, 2.0, 3.0]
+            sim_ts = [1.1, 1.9, 3.2]
+            
+            @test GEMS.mae(sim_ts, ref_ts) ≈ (0.1 + 0.1 + 0.2) / 3
+            @test GEMS.rmse(sim_ts, ref_ts) ≈ sqrt((0.01 + 0.01 + 0.04) / 3)
+        end
+
+        @testset "assign_values_to_parameters!" begin
+            sim = Simulation(pop_size=100)
+            
+            # Provide initial setup
+            for s in settings(sim, Household)
+                s.contact_sampling_method = GEMS.ContactparameterSampling(0.0)
+            end
+            
+            # Run parameter assignment for a setting
+            GEMS.assign_values_to_parameters!(sim, x=[0.15], arg=["households"])
+            
+            # Assert parameter has successfully changed
+            for s in settings(sim, Household)
+                @test s.contact_sampling_method.contactparameter == 0.15
+            end
+
+            # Ordinary Parameter
+            sim.seed = 1 # Reset seed
+            GEMS.assign_values_to_parameters!(sim, x=[42], arg=["seed"])
+            @test sim.seed == 42
+            
+            GEMS.assign_values_to_parameters!(sim, x=[0.75], arg=["sim.pathogen.transmission_function.transmission_rate"])
+            @test sim.pathogen.transmission_function.transmission_rate == 0.75
+        end
+        
+        using Random # for setting the seed
+
+        @testset "calibrate!" begin
+            # Make the stochastic optimizer deterministic for this test
+            Random.seed!(42) 
+            
+            sim = Simulation(pop_size=100)
+            
+            # dummy reference data
+            ref_data = [50.0]
+            
+            # Use a continuous parameter that exists in your model, like a modifier or rate
+            p_args = ["sim.pathogen.transmission_function.transmission_rate"]
+            initial_x = [10.0]
+            
+            # dummy target function: just returns the current value of the parameter
+            dummy_target_fn(s) = [s.pathogen.transmission_function.transmission_rate] 
+            
+            # Call calibrate! 
+            res = GEMS.calibrate!(
+                sim;
+                target = dummy_target_fn,
+                loss = GEMS.rmse,
+                ref_ts = ref_data,
+                arg_x0 = p_args,
+                x0 = initial_x,
+                lower_limit = [0.0],
+                upper_limit = [100.0],
+                n = 1,
+                maxiters = 5,
+                plot_training = false
+            )
+            
+            # Verify that the Optimization returned a valid result object
+            @test res !== nothing
+            
+            # Verify that the optimizer moved `x` towards our target of 50.0
+            @test res.u[1] > 10.0 
+        end     
+    end
+
     @testset "Helper Functions" begin
         sim = Simulation(pop_size = 1_000)
         
@@ -383,4 +492,82 @@
         @test !isempty(output)
     end
 
+    @testset "Simulation Acceleration (Dormancy)" begin
+        @testset "is_dormant evaluation" begin
+            sim = Simulation(pop_size = 100)
+            
+            # tick 0: state logger is empty, so it should not be dormant yet
+            @test GEMS.is_dormant(sim) == false
+            
+            # take one real step to populate the loggers with zeros
+            step!(sim)
+            @test tick(sim) == 1
+            
+            # tick 1: 0 infections, 0 quarantines logged, so it should be dormant
+            @test GEMS.is_dormant(sim) == true
+            
+            # inject manual states into the logger to test the macroscopic wake-up logic
+            tid = Threads.threadid()
+            
+            # test Infectious wake-up
+            push!(statelogger(sim).infectious, 1)
+            @test GEMS.is_dormant(sim) == false
+            pop!(statelogger(sim).infectious) # revert
+            
+            # test Exposed wake-up
+            push!(statelogger(sim).exposed, 1)
+            @test GEMS.is_dormant(sim) == false
+            pop!(statelogger(sim).exposed) # revert
+            
+            # test Quarantine wake-up
+            push!(statelogger(sim).quarantined, 1)
+            @test GEMS.is_dormant(sim) == false
+            pop!(statelogger(sim).quarantined) # revert
+            
+            # Ensure it goes back to sleep when all states are 0
+            @test GEMS.is_dormant(sim) == true
+        end
+
+        @testset "copy_last_log_state" begin
+            sim = Simulation(pop_size = 100)
+            @test tick(sim) == 0
+            
+            # populate initial empty state (generates log entry for tick 1)
+            step!(sim)
+            @test tick(sim) == 1
+            
+            # manually increment tick to simulate next step loop
+            sim.tick += 1
+            @test tick(sim) == 2
+            
+            # trigger the function to copy previous step's state 
+            GEMS.copy_last_log_state(sim)
+            
+            # verify the statelogger
+            sl = statelogger(sim)
+            df = dataframe(sl)
+            
+            # total rows should be 2 (tick 1 + tick 2)
+            @test nrow(df) == 2 
+            
+            # the last recorded tick in the logger should be 2 
+            @test df.tick[end] == 2
+            
+            # Verify the states are properly copied and haven't arbitrarily spiked
+            @test df.exposed[end] == 0
+            @test df.infectious[end] == 0
+            @test df.quarantined[end] == 0
+        end
+    end
+
+    @testset "Simulation Buffers" begin
+        sim = Simulation()
+        num_threads = Threads.maxthreadid()
+        
+        @test length(present_buffers(sim)) == num_threads
+        @test length(contact_buffers(sim)) == num_threads
+        
+        # Verify they are actual individual vectors
+        @test present_buffers(sim)[1] isa Vector{Individual}
+    end
 end

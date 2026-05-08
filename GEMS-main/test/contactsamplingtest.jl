@@ -74,13 +74,14 @@
     end
 
     @testset "AgeBasedContactSampling" begin
+        BASE_FOLDER = dirname(dirname(pathof(GEMS)))
         m = hcat([[rand() for i = 1:10] for i = 1:10]...)
         m = m .* hcat([vec(1 ./ sum(m, dims=2)) for _ =1:10]...) # normalization of each row
-        abcs_null = AgeBasedContactSampling(0.0, 10, ContactMatrix{Float64}(m, 10), Float64[])
-        abcs1 = AgeBasedContactSampling(1.0, 10, ContactMatrix{Float64}(m, 10), Float64[])
-        abcs2 = AgeBasedContactSampling(2.0, 10, ContactMatrix{Float64}(m, 10), Float64[])
-        abcs3 = AgeBasedContactSampling(3.0, 10, ContactMatrix{Float64}(m, 10), Float64[])
-        abcs100 = AgeBasedContactSampling(100.0, 10, ContactMatrix{Float64}(m, 10), Float64[])
+        abcs_null = AgeBasedContactSampling(0.0, 10, ContactMatrix{Float64}(m, 10, 100), Float64[])
+        abcs1 = AgeBasedContactSampling(1.0, 10, ContactMatrix{Float64}(m, 10, 100), Float64[])
+        abcs2 = AgeBasedContactSampling(2.0, 10, ContactMatrix{Float64}(m, 10, 100), Float64[])
+        abcs3 = AgeBasedContactSampling(3.0, 10, ContactMatrix{Float64}(m, 10, 100), Float64[])
+        abcs100 = AgeBasedContactSampling(contactparameter=100.0, interval=5, contact_matrix_file=BASE_FOLDER * "/test/testdata/contact_matrix.txt")
 
         # initial infectant
         i = Individual(id = 1, age = floor(Int, rand(Uniform(1, 100))), sex = floor(Int, rand(Uniform(0, 2))), household=1)
@@ -124,5 +125,21 @@
         # Sampling from a setting where no individual is present should result in an error
         @test_throws ArgumentError sample_contacts(abcs1, empty_h, i_index, individuals(empty_h), GEMS.DEFAULT_TICK, rng = Xoshiro())
 
+    end
+
+    @testset "Buffer-aware Sampling" begin
+        rs = RandomSampling()
+        indis = [Individual(id=j, age=18, sex=1, household=1) for j in 0:10]
+        h = Household(id=1, individuals=indis, contact_sampling_method=rs)
+        
+        # Create an empty buffer
+        buffer = Vector{Individual}()
+        
+        # Call the new ! version
+        sample_contacts!(buffer, rs, h, 1, indis, Int16(1), true, Xoshiro(42))
+        
+        @test length(buffer) == 1
+        @test buffer[1] isa Individual
+        @test buffer[1].id != indis[1].id # Should not sample self
     end
 end
