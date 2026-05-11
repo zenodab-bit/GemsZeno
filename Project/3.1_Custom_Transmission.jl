@@ -19,7 +19,7 @@ function GEMS.transmission_probability(transFunc::SettingRate,
     end
 
     # Logic for GlobalSetting (concert) on day 5
-    if tick == 30
+    if tick == 15
         # Transmission only occurs between individuals in the same section
         if infecter.occupation == 1 && infected.occupation == 1
             return transFunc.sitting_rate  # Both are sitting
