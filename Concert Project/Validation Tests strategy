@@ -1,29 +1,35 @@
-First Test:
-    concert day 15
-    event size total = 1000
-    sitting/standing = 1/0
-    male/female ratio = 50/50
-    age_groups_percentage all 0.125 (eight groups)
-    sitting contacts  = 5
-    standing contacts = 0
-    
-    general rate = 0.2
-    sitting rate = 0.5
-    standing rate = 0.5
+First test: Simulation 4.1.1
+Concert on day 15
+Concert size 1000
+All sitting
+male / female = 50 / 50
+evenly spread in the age groups
+mean sitting contacts = 1
 
-    total infects= 360166
-    global infects= 121
+mean number of infection is:
+    Concert Partecipants * (Infected in the population/total population) * Average contacts * transmission probability
+    => 1000 * ( Infected in the population / 434591) * 1
+    => 1000 * (8718 / 434591) * 1
+    => 1000 * (0,0200) * 1
+    => 20
 
+Variance is:
+    mean * (1 + average contacts * transmission probability * (1 - (Infected in the population/total population)))
+    => 20 * (1 + 1(1 - (Infected in the population / 434591)))
+    => 20 * (1 + 1(1 - (8718 / 434591)))
+    => 20 * (1 + 1(1 - 0,020))
+    => 20 * (1 + 1 * 0,98)
+    => 20 * (1 + 0,98)
+    => 20 * 1,98
+    => 39,6
 
-Second Test:
-    concert day 15
-    event size total = 1000
-    sitting/standing = 1/0
-    male/female ratio = 50/50
-    age_groups_percentage all 0.125 (eight groups)
-    sitting contacts  = 5
-    standing contacts = 0
-    
-    general rate = 0.2
-    sitting rate = 1
-    standing rate = 0.5
+Standard deviation:
+    sqrt(Var)
+    => sqrt(39,6)
+    => 6,29
+
+Z score:
+    (infected at the concert - mean) / standard deviation
+    => (93 - 20) / 6,29 
+    => 11,6
+     Impossible

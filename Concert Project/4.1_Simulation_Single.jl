@@ -1,23 +1,23 @@
 ## === Global Configuration ===
 
 # --- Concert Settings ---
-# Simulation tick when the concert event would occur (not used in base simulation)
+# Simulation tick when the concert event would occur
 const concert_date = 15
 
-# Total number of participants at the concert event (none in base simulation)
-const event_size_total = 1000
+# Total number of participants at the concert event
+const event_size_total = 4166
 
-# Percentage of participants in sitting and standing sections (not used)
-const concert_groups_percentage = [0.5, 0.5]
+# Percentage of participants in sitting and standing sections
+const concert_groups_percentage = [1, 0]
 
-# Exact number of participants in sitting and standing sections (none in base simulation)
+# Exact number of participants in sitting and standing sections
 const concert_groups_number = [0, 0]
 
-# Occupation codes for concert attendance (not used in base simulation)
+# Occupation codes for concert attendance
 # -1: Not participating, 1: Sitting, 2: Standing
 const concert_attendance_levels = [1, 2]
 
-# Flag to use exact numbers or percentages for concert groups (not used)
+# Flag to use exact numbers or percentages for concert groups
 const concert_groups_number_true = false
 
 # --- Demographic Settings ---
@@ -43,11 +43,12 @@ const age_groups_percentage = [
 const age_groups = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
 
 # --- Contact Settings ---
-# Average number of contacts for sitting participants (not used in base simulation)
+# Average number of contacts for sitting participants
 const mean_number_of_contacts_sitting = 5
 
-# Average number of contacts for standing participants (not used in base simulation)
+# Average number of contacts for standing participants
 const mean_number_of_contacts_standing = 0
+
 
 
 
@@ -125,3 +126,12 @@ println("Total infected in GlobalSetting (Concert): ", total_global_infected)
 
 # Return the total infected in GlobalSetting
 total_global_infected
+
+
+
+
+
+
+
+## END
+println("END SIMULATION 4.1 SINGLE SIMULATION")

@@ -48,7 +48,7 @@ function GEMS.sample_contacts!(
     elseif ego.occupation == 2
         rand(rng, Poisson(mean_number_of_contacts_standing))
     else
-        0  # Fallback (should never be reached)
+        0  # Fallback
     end
 
     # Pre-allocate space for efficiency
