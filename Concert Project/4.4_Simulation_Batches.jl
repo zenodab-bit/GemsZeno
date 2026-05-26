@@ -2,10 +2,10 @@
 
 # --- Concert Settings ---
 # Simulation tick when the concert event would occur
-const concert_date = 15
+const concert_date = 1
 
 # Total number of participants at the concert event
-const event_size_total = 4166
+const event_size_total = 1000
 
 # Percentage of participants in sitting and standing sections
 const concert_groups_percentage = [1, 0]
@@ -44,12 +44,14 @@ const age_groups = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50",
 
 # --- Contact Settings ---
 # Average number of contacts for sitting participants
-const mean_number_of_contacts_sitting = 5
+const mean_number_of_contacts_sitting = 1
 
 # Average number of contacts for standing participants
 const mean_number_of_contacts_standing = 0
 
-n_simulations = 3
+n_simulations = 10
+
+
 
 ## === Include Custom Modules ===
 include("1.1_Custom_Population.jl")
@@ -61,7 +63,7 @@ include("3.1_Custom_Transmission.jl")
 sims = Simulation[]
 for i in 1:n_simulations
     sim = Simulation(
-        configfile = "Concert Project/toml/config_concert.toml",
+        configfile = "Concert Project/toml/config_concert_1.toml",
         population = "Concert Project/Datastorage/people_Saalekreis_concert.jld2",  # Use the concert population file
         settingsfile = "Concert Project/Datastorage/settings_Saalekreis.jld2",
         global_setting_contacts = ConcertContacts(),
@@ -131,7 +133,7 @@ png(p, "Concert Project/Plots/Batch_cases_first.png")
 # Initialize dictionaries to store results
 global_infected_values = Float64[]
 day_infected_values = Dict{Int, Vector{Float64}}()
-for day in [5, 15, 25]
+for day in [1, 2, 5]
     day_infected_values[day] = Float64[]
 end
 
@@ -142,7 +144,7 @@ for i in 1:length(sims)
 
     # Specific days - get daily cases AT the exact day
     cases_df = sim_results[i].data["dataframes"]["tick_cases_per_setting"]
-    for day in [5, 15, 25]
+    for day in [1, 2, 5]
         exact_day = filter(row -> row.tick == day, cases_df)
         push!(day_infected_values[day], sum(exact_day.daily_cases))
     end
@@ -158,7 +160,7 @@ println("Average total infected in GlobalSetting: ", mean(global_infected_values
 
 # Print specific days results
 println("\n=== New Infections at Specific Days ===")
-for day in [5, 15, 25]
+for day in [1, 2, 5]
     println("\nDay $day:")
     for (i, val) in enumerate(day_infected_values[day])
         println("  Simulation $i: ", val)

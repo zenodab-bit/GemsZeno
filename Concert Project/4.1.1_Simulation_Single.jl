@@ -2,7 +2,7 @@
 
 # --- Concert Settings ---
 # Simulation tick when the concert event would occur
-const concert_date = 15
+const concert_date = 1
 
 # Total number of participants at the concert event
 const event_size_total = 1000
