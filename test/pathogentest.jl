@@ -285,7 +285,7 @@
             stratification_matrix = stratification_matrix
         )
         # non-existing progression category
-        @test_throws String AgeBasedProgressionAssignment(
+        @test_throws ArgumentError AgeBasedProgressionAssignment(
             age_groups = age_groups,
             progression_categories = ["Asymptomatic", "Symptomatic", "Hospitalized", "NonExistingProgression"],
             stratification_matrix = stratification_matrix
@@ -473,6 +473,8 @@
             age_groups = ["0-19", "20-39", "40-59", "60-"],
             transmission_rates = [0.1, 1.2, 0.3, 0.4]
         )
+
+        @test !isempty(@capture_out show(abtr))
     end
 
     @testset "Custom Transmission Function" begin

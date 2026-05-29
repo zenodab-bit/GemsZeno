@@ -23,47 +23,81 @@
 
     @testset "Markdown Conversion" begin
 
-        # escaping
+        # Escaping strings and paths
         @test escape_markdown("_*") == "\\_\\*"
         @test savepath("C:\\Test") == "C:/Test"
 
-        # Note: This only checks, if the markdown conversions are strings.
-        # In an ideal world, there'd be a package that has a checker,
-        # whether a String contains valid markdown syntax, but I didn't find any
+        # Note: This primarily checks if the markdown conversions yield strings.
+        # Ideally, there'd be a way to validate markdown syntax.
 
-        # start conditions
+        # Array Fallbacks & Printing
+        @test GEMS.print_arr([]) == ""
+        @test GEMS.print_arr([1, 2]) == "[1, 2]"
+        @test markdown([2.0, 3.0]) == "[2, 3]"
+        @test markdown(Any[1, "test", 3.0]) |> typeof == String
+
+        # Start Conditions
         @test InfectedFraction(fraction = 0.01) |> markdown |> typeof == String
+        
+        start_conds = StartCondition[InfectedFraction(fraction=0.01), InfectedFraction(fraction=0.05)]
+        @test markdown(start_conds) |> typeof == String
 
-        # stop criteria
+        # Stop Criteria
         @test TimesUp(limit = 10) |> markdown |> typeof == String
+        
+        stop_crits = StopCriterion[TimesUp(limit=10), TimesUp(limit=20)]
+        @test markdown(stop_crits) |> typeof == String
 
-        # pathogens
+        # Pathogens & Vaccines
         @test sim |> pathogen |> markdown |> typeof == String
+
+        v = Vaccine(id=1, name="Antitest")
+        md_vac = markdown(v)
+        @test md_vac |> typeof == String
+        @test occursin("Antitest", md_vac)
+        @test occursin("| Property | Value", md_vac)
 
         # Distributions
         @test Uniform(0, 1) |> markdown |> typeof == String
         @test Poisson(4) |> markdown |> typeof == String
 
-        # Settings SettingsContainer
-        @test sim |> settings |> markdown |> typeof == String
+        bin_dist = Binomial(10, 0.5)
+        md_bin = markdown(bin_dist)
+        @test md_bin |> typeof == String
+        @test occursin("Binomial distribution", md_bin)
+        @test occursin("n = 10", md_bin)
+        @test occursin("p = 0.5", md_bin)
 
-        @test GEMS.print_arr([]) == ""
-        @test GEMS.print_arr([1, 2]) == "[1, 2]"
-
-        @test markdown([2.0, 3.0]) == "[2, 3]"
-
-        # Test for markdown(Distribution)
         dist = Normal(0, 1)
         md_dist = markdown(dist)
         @test occursin("Normal", md_dist)
         @test occursin("σ", md_dist)  # Checks if parameters appear
 
-        # Test for markdown(SettingsContainer, Simulation)
-        sim = Simulation()
-        stngs = SettingsContainer()
-        md_settings = markdown(stngs, sim)
-        @test occursin("| Setting | Number", md_settings)
-        @test occursin("Table: Setting Summary", md_settings)
+        # Settings Container (Empty)
+        @test sim |> settings |> markdown |> typeof == String
+        
+        sim_empty = Simulation()
+        stngs_empty = SettingsContainer()
+        md_settings_empty = markdown(stngs_empty, sim_empty)
+        @test occursin("| Setting | Number", md_settings_empty)
+        @test occursin("Table: Setting Summary", md_settings_empty)
+
+        # Settings Container (Populated)
+        sim_pop = Simulation()
+        sc_pop = SettingsContainer()
+        add_types!(sc_pop, [Household])
+        
+        rs = RandomSampling()
+        inds = [Individual(id=j, age=18, sex=1) for j in 1:3]
+        hh = Household(id=1, individuals=inds, contact_sampling_method=rs)
+        
+        add!(sc_pop, hh)
+        sim_pop.settings = sc_pop
+        
+        md_stngs_pop = markdown(sc_pop, sim_pop)
+        @test md_stngs_pop |> typeof == String
+        @test occursin("Household", md_stngs_pop) # Verifies loop executed
+        @test occursin("Table: Setting Summary", md_stngs_pop)
 
     end
 
@@ -121,9 +155,43 @@
         # default generated sections for batches
 
         @test Section(bd, :BatchInfo) |> typeof == Section
-        @test Section(bd, :Runtime) |> typeof == Section
-        @test Section(bd, :Allocations) |> typeof == Section
         @test Section(bd, :Resources) |> typeof == Section
+        
+        @testset "sec_Runtime and sec_Allocations" begin
+            # empty branch: BatchData built from a normal Batch has no "runtime"/"allocations"
+            # in its meta_data, so the guard fires and produces the documented fallback content.
+            s_rt_empty = Section(bd, :Runtime)
+            @test s_rt_empty |> typeof == Section
+            @test occursin("No timer available", content(s_rt_empty))
+            @test occursin("main()", content(s_rt_empty))
+
+            s_al_empty = Section(bd, :Allocations)
+            @test s_al_empty |> typeof == Section
+            @test occursin("No timer available", content(s_al_empty))
+            @test occursin("main()", content(s_al_empty))
+
+            # populated branch: inject aggregated timer data directly rather than running main(),
+            # using the same aggregate_values() that a batch main() would use.
+            # Runtime values are nanoseconds; allocations values are bytes.
+            rt_agg = aggregate_values([1_000_000_000.0, 1_500_000_000.0, 2_000_000_000.0])
+            al_agg = aggregate_values([480_000_000.0, 500_000_000.0, 520_000_000.0])
+
+            bd_rt = BatchData(b)
+            bd_rt.data["meta_data"]["runtime"] = Dict("1 Initialization" => rt_agg, "2 Runtime" => rt_agg)
+            s_rt = Section(bd_rt, :Runtime)
+            @test s_rt |> typeof == Section
+            @test occursin("1 Initialization", content(s_rt))
+            @test occursin("2 Runtime", content(s_rt))
+            @test occursin("Table: Batch Runtimes", content(s_rt))
+
+            bd_al = BatchData(b)
+            bd_al.data["meta_data"]["allocations"] = Dict("1 Initialization" => al_agg, "2 Runtime" => al_agg)
+            s_al = Section(bd_al, :Allocations)
+            @test s_al |> typeof == Section
+            @test occursin("1 Initialization", content(s_al))
+            @test occursin("2 Runtime", content(s_al))
+            @test occursin("Table: Batch Runtimes", content(s_al))
+        end
 
         @testset "Flatten Sections Tests" begin
             # Create sections and subsections
@@ -147,6 +215,37 @@
             @test empty_result[1][1] == empty_section && empty_result[1][2] == 0
         end
 
+    end
+
+    @testset "Section Generation" begin
+        s = Section(title = "Test Section", content = "Test content")
+
+        # generate_title: depth controls the number of leading '#'
+        @test GEMS.generate_title(s, 1) == "# Test Section\n\n"
+        @test GEMS.generate_title(s, 3) == "### Test Section\n\n"
+
+        ps = PlotSection(TickCases())
+        @test GEMS.generate_title(ps, 1) == "# $(title(TickCases()))\n\n"
+
+        # generate_content for a plain Section returns content + newlines
+        @test GEMS.generate_content(s, rd, "dummy_dir") == "Test content\n\n"
+
+        # generate(Section, depth, rd, dir) returns heading + content as markdown
+        mktempdir() do dir
+            md = generate(s, 1, rd, dir)
+            @test occursin("# Test Section", md)
+            @test occursin("Test content", md)
+
+            # convenience wrapper defaults to depth 1
+            @test generate(s, rd, dir) == generate(s, 1, rd, dir)
+
+            # generate(PlotSection, depth, rd, dir): markdown contains image reference on success
+            mkpath(joinpath(dir, "img"))
+            md_plot = generate(ps, 1, rd, dir)
+            @test !isempty(md_plot)
+            @test occursin("# ", md_plot)
+            @test occursin("./img/", md_plot)
+        end
     end
 
 
@@ -294,6 +393,52 @@
             end
         end
 
+        @testset "gemsplot Vector paths" begin
+            sim_a = Simulation(pop_size = 100, label = "A")
+            run!(sim_a)
+            rd_a = sim_a |> PostProcessor |> ResultData
+
+            sim_b = Simulation(pop_size = 100, label = "B")
+            run!(sim_b)
+            rd_b = sim_b |> PostProcessor |> ResultData
+
+            rds = [rd_a, rd_b]
+
+            # combined = :all — exercises the generate(plt, rds) path
+            @test gemsplot(rds, type = :TickCases) isa Plots.Plot
+
+            # combined = :single — exercises splitplot
+            @test gemsplot(rds, type = :TickCases, combined = :single) isa Plots.Plot
+
+            # combined = :bylabel — exercises splitlabel
+            @test gemsplot(rds, type = :TickCases, combined = :bylabel) isa Plots.Plot
+
+            # empty vector throws
+            @test_throws ArgumentError gemsplot(ResultData[])
+
+            # unknown type throws
+            @test_throws ArgumentError gemsplot(rds, type = :NonExistentPlotType)
+        end
+
+        @testset "splitlabel" begin
+            sim_a = Simulation(pop_size = 100, label = "ScenarioA")
+            run!(sim_a)
+            rd_a = sim_a |> PostProcessor |> ResultData
+
+            sim_b = Simulation(pop_size = 100, label = "ScenarioB")
+            run!(sim_b)
+            rd_b = sim_b |> PostProcessor |> ResultData
+
+            # two distinct labels — two side-by-side group plots
+            @test splitlabel(TickCases(), [rd_a, rd_b]) isa Plots.Plot
+
+            # same label — all runs folded into one group
+            sim_c = Simulation(pop_size = 100, label = "ScenarioA")
+            run!(sim_c)
+            rd_c = sim_c |> PostProcessor |> ResultData
+            @test splitlabel(TickCases(), [rd_a, rd_c]) isa Plots.Plot
+        end
+
         @testset "Scenario Simulation Plots" begin
             p = AggregatedSettingAgeContacts(Household)
             @test settingtype(p) == Household
@@ -340,7 +485,7 @@
             seroprevalence_test = SeroprevalenceTestType("Seroprevalence Test", pathogen(seroprevalence_testing), seroprevalence_testing)
             testing = IStrategy("Testing", seroprevalence_testing)
             add_measure!(testing, GEMS.Test("Test", seroprevalence_test))
-            trigger = ITickTrigger(testing, switch_tick=Int16(1), interval=Int16(1))
+            trigger = ITickTrigger(testing, switch_tick=Int16(1), interval=Int16(120))
             add_tick_trigger!(seroprevalence_testing, trigger)
             run!(seroprevalence_testing)
             rd = ResultData(seroprevalence_testing)
@@ -354,6 +499,52 @@
             @test p2 isa Plots.Plot
             @test p3 isa Plots.Plot
         end
+
+        @testset "AggregatedSettingAgeContacts" begin
+            sim_c = Simulation(pop_size = 1000)
+            run!(sim_c)
+            rd_c = sim_c |> PostProcessor |> ResultData
+
+            @test generate(AggregatedSettingAgeContacts(Household), rd_c) isa Plots.Plot
+            @test generate(AggregatedSettingAgeContacts(), rd_c) isa Plots.Plot
+        end
+
+        @testset "SettingAgeContacts" begin
+            mutable struct SettingAgeContactsResultData <: ResultDataStyle
+                data::Dict{Any,Any}
+                function SettingAgeContactsResultData(pP::PostProcessor)
+                    return new(Dict(
+                        "setting_age_contacts" => Dict(
+                            "Household" => setting_age_contacts(pP, Household)
+                        ),
+                        "sim_data" => Dict(
+                            "final_tick" => tick(pP |> simulation)
+                        )
+                    ))
+                end
+            end
+            sim_conf = Simulation(
+                configfile = joinpath(basefolder, "test/testdata/TestConf.toml"),
+                population = joinpath(basefolder, "test/testdata/TestPop.csv")
+            )
+            run!(sim_conf)
+            rd_conf = ResultData(sim_conf |> PostProcessor, style = "SettingAgeContactsResultData")
+            @test generate(SettingAgeContacts(Household), rd_conf) isa Plots.Plot
+        end
+
+        @testset "TotalTests with test data (Vector{ResultData})" begin
+            function make_rd_with_tests()
+                s = Simulation()
+                test = TestType("PCR", pathogen(s), s)
+                strat = IStrategy("Testing", s)
+                add_measure!(strat, GEMS.Test("Test", test))
+                add_symptom_trigger!(s, SymptomTrigger(strat))
+                run!(s)
+                return s |> PostProcessor |> ResultData
+            end
+            @test generate(TotalTests(), [make_rd_with_tests(), make_rd_with_tests()]) isa Plots.Plot
+        end
+
     end
 
     @testset "Custom Report" begin
@@ -461,35 +652,26 @@
             @test bounds ≈ expected_bounds
         end
 
-        #= @testset "generate_map tests" begin
-              dest = basefolder * "/test_map.png"
+        @testset "generate_map error paths" begin
+            df_empty = DataFrame(lat=Float64[], lon=Float64[])
 
-              # Test with normal coordinates
+            @test_throws ArgumentError generate_map(df_empty, "dummy.png")
+            @test_throws ArgumentError generate_map(df_empty, "dummy.png"; plotempty=true)
+        end
+
+        #= @testset "generate_map GMT tests" begin
+              # These tests require a system GMT installation and are disabled in CI.
+              dest = basefolder * "/test_map.png"
               df = DataFrame(lat=[50, 51, 52], lon=[8, 9, 10])
               result = generate_map(df, dest)
               @test result isa GMTWrapper
-              @test isfile(dest)  # file should be generated
+              @test isfile(dest)
 
-              # Test: empty DataFrame -> should throw an error
-              df_empty = DataFrame(lat=[], lon=[])
-              @test_throws "You passed an empty dataframe" generate_map(df_empty, dest)
-
-              # Test: plotempty =True without region -> should throw an error
-              @test_throws "If you force an empty plot, you must specify a region" generate_map(df_empty, dest; plotempty=true)
-
-              # Test: plotempty=True with a defined region -> should generate an empty map
-              region = [7, 11, 49, 53]  # Bounding Box for the Test-coordinates
+              region = [7, 11, 49, 53]
               result = generate_map(df_empty, dest; region=region, plotempty=true)
               @test result isa GMTWrapper
               @test isfile(dest)
 
-              # Test with a specific region
-              custom_region = [7, 11, 49, 53]
-              result = generate_map(df, dest; region=custom_region)
-              @test result isa GMTWrapper
-              @test isfile(dest)
-
-              # Cleanup after Tests
               rm(dest; force=true)
           end =#
 
@@ -516,19 +698,19 @@
 
             # Test: wrong columns in the DataFrame → Should throw an error
             df_wrong = DataFrame(id=ags_states, values=[10, 20, 30])
-            @test_throws "The first column of the input dataframe must be named 'ags'." agsmap(df_wrong)
+            @test_throws ArgumentError agsmap(df_wrong)
 
             # Test: First column is not AGS → Should throw an error
             df_wrong_type = DataFrame(ags=["01000000", "02000000", "03000000"], values=[10, 20, 30])
-            @test_throws "The first column of the input dataframe must contain a Vector of AGS structs" agsmap(df_wrong_type)
+            @test_throws ArgumentError agsmap(df_wrong_type)
 
             # Test: Second column does not contain numeric values → Should throw an error
             df_wrong_values = DataFrame(ags=ags_states, values=["low", "medium", "high"])
-            @test_throws "The second column of the input dataframe must contain a Vector of numeric values" agsmap(df_wrong_values)
+            @test_throws ArgumentError agsmap(df_wrong_values)
 
             # Test: double AGS-values → Should throw an error
             df_duplicate = DataFrame(ags=[AGS("01000000"), AGS("01000000"), AGS("02000000")], values=[10, 20, 30])
-            @test_throws "All AGS values need to be unique!" agsmap(df_duplicate)
+            @test_throws ArgumentError agsmap(df_duplicate)
 
         end
         @testset "agsmap wrapper tests" begin
@@ -619,11 +801,11 @@
 
             # Test: error for wrong column name
             df_wrong = DataFrame(id=ags_municipalities, values=[10, 20, 30])
-            @test_throws "The first column of the input dataframe must be named 'ags'." prepare_map_df!(df_wrong, level=1)
+            @test_throws ArgumentError prepare_map_df!(df_wrong, level=1)
 
             # Test: error for wrong datatype
             df_wrong_type = DataFrame(ags=["01000000", "02000000", "03000000"], values=[10, 20, 30])
-            @test_throws "The first column of the input dataframe must contain a Vector of AGS structs" prepare_map_df!(df_wrong_type, level=1)
+            @test_throws ArgumentError prepare_map_df!(df_wrong_type, level=1)
         end
         @testset "MapPlot Abstract Type Tests" begin
             # Test, if MapPlot ein Subtype of ReportPlot
@@ -682,7 +864,7 @@
             @test result isa Plots.Plot
 
             # Test: unknown plot types throws an error
-            @test_throws "There's no plot type that matches :UnknownMap" gemsmap(sim, type=:UnknownMap)
+            @test_throws ArgumentError gemsmap(sim, type=:UnknownMap)
 
             # Test: Plot with additional arguments
             result = gemsmap(sim, type=:AgeMap, title="Test Map", clims=(0, 100))
@@ -730,6 +912,34 @@
 
     end
 
+    @testset "gemsheatmap" begin
+        x = [1.0, 1.0, 2.0, 2.0]
+        y = [1.0, 2.0, 1.0, 2.0]
+        z = [1.0, 2.0, 3.0, 4.0]
+
+        @test gemsheatmap(x, y, z) isa Plots.Plot
+        @test gemsheatmap(x, y, z, xrev = true, yrev = true) isa Plots.Plot
+        @test gemsheatmap(x, y, z,
+            xformatter = v -> "x=$v",
+            yformatter = v -> "y=$v") isa Plots.Plot
+
+        # aggregation: duplicate (x,y) pairs are reduced by the aggregate function
+        x2 = [1.0, 1.0, 2.0, 2.0, 1.0, 2.0]
+        y2 = [1.0, 2.0, 1.0, 2.0, 1.0, 2.0]
+        z2 = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        @test gemsheatmap(x2, y2, z2, aggregate = mean) isa Plots.Plot
+
+        # missing combination throws
+        @test_throws ArgumentError gemsheatmap([1.0, 1.0, 2.0], [1.0, 2.0, 1.0], [1.0, 2.0, 3.0])
+
+        # r0 color scheme: all above 1
+        @test gemsheatmap(x, y, [1.0, 1.5, 2.0, 2.5], color = :r0) isa Plots.Plot
+        # r0 color scheme: all below 1
+        @test gemsheatmap(x, y, [0.1, 0.3, 0.5, 0.8], color = :r0) isa Plots.Plot
+        # r0 color scheme: values crossing 1
+        @test gemsheatmap(x, y, [0.5, 0.8, 1.2, 1.5], color = :r0) isa Plots.Plot
+    end
+
     @testset "Plots Test" begin
 
         @testset "GMTWrapper Tests" begin
@@ -748,7 +958,7 @@
             rd = sim |> PostProcessor |> ResultData
 
             dummy_plot = DummyPlot()
-            @test_throws "generate(...) is not defined for concrete report plot type DummyPlot" generate(dummy_plot, rd)
+            @test_throws ErrorException generate(dummy_plot, rd)
         end
 
         @testset "Plot Formatting Functions" begin

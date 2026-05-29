@@ -2,8 +2,7 @@
 ### VACCINES (TYPE DEFINITION & BASIC FUNCTIONALITY)
 ###
 export Vaccine
-export id, name, waning
-export parameters
+export id, name, waning, logger
 
 """
     Vaccine <: Parameter
@@ -51,14 +50,3 @@ function logger(vaccine::Vaccine)::VaccinationLogger
     return vaccine.logger
 end
 
-"""
-    parameters(v::Vaccine)::Dict
-
-Returns a dictionary containing the parameters of the vaccine.
-"""
-function parameters(v::Vaccine)::Dict
-    return Dict(
-        "id" => v |> id,
-        "name" => v |> name,
-    )
-end

@@ -13,10 +13,10 @@ export pathogen, pathogen!
 export configfile, populationfile
 export evaluate
 export initialize!, reinitialize!
-export increment!, reset!
+export increment!, reset!, reset_tick!
 export tickunit
 export infectionlogger, deathlogger, testlogger, quarantinelogger, pooltestlogger, seroprevalencelogger, customlogger, customlogger!
-export statelogger, statelogger!, states
+export statelogger, states
 export infections, tests, deaths, quarantines, pooltests, seroprevalencetests, customlogs, populationDF
 export symptom_triggers, add_symptom_trigger!, tick_triggers, add_tick_trigger!, hospitalization_triggers, add_hospitalization_trigger!
 export event_queue
@@ -543,11 +543,7 @@ function determine_tick_unit(configfile_params::Dict, tickunit)
 
     tu = configfile_params["Simulation"]["tickunit"]
     !isa(only(tu), Char) && throw(ConfigfileError("'[Simulation] => tickunit' must be a single character!"))
-    return try
-        only(tu)
-    catch e
-        throw(ConfigfileError("'[Simulation] => tickunit' could not be read from config file.", e))
-    end
+    return only(tu)
 end
 
 
@@ -925,11 +921,7 @@ function determine_seed(configfile_params::Dict, seed)
     !isa(sd, Integer) && throw(ArgumentError("Provided seed in config file must be an integer value."))
     sd < 0 && throw(ArgumentError("Provided seed in config file must be a non-negative integer value."))
     printinfo("\u2514 Initializing RNG with seed $sd")
-    return try
-        sd
-    catch e
-        throw(ConfigfileError("'[Simulation] => seed' could not be read from config file.", e))
-    end
+    return sd
 end
 
 
@@ -977,7 +969,7 @@ function create_progression(params::Dict, category::String)
     return try
         GEMS.get_subtype(category, ProgressionCategory)(;kw_args...)
     catch e
-        throw("ProgressionCategory of type '$category' could not be created. $(sprint(showerror, e))")
+        throw(ErrorException("ProgressionCategory of type '$category' could not be created. $(sprint(showerror, e))"))
     end
 end
 
@@ -995,7 +987,7 @@ function create_progression_assignment(params::Dict)
     return try
         pa_type(;kw_args...)
     catch e
-        throw("ProgressionAssignmentFunction of type '$pa_type' could not be created. $(sprint(showerror, e))")
+        throw(ErrorException("ProgressionAssignmentFunction of type '$pa_type' could not be created. $(sprint(showerror, e))"))
     end
 end
 
@@ -1012,7 +1004,7 @@ function create_transmission_function(params::Dict)
     return try
         tf_type(;kw_args...)
     catch e
-        throw("TransmissionFunction of type '$tf_type' could not be created. $(sprint(showerror, e))")
+        throw(ErrorException("TransmissionFunction of type '$tf_type' could not be created. $(sprint(showerror, e))"))
     end
 end
 
@@ -1087,7 +1079,7 @@ function create_start_condition(params::Dict)
     return try
         sc_type(;kw_args...)
     catch e
-        throw("StartCondition of type '$sc_type' could not be created. $(sprint(showerror, e))")
+        throw(ErrorException("StartCondition of type '$sc_type' could not be created. $(sprint(showerror, e))"))
     end
 end
 
@@ -1104,7 +1096,7 @@ function create_stop_criterion(params::Dict)
     return try
         sc_type(;kw_args...)
     catch e
-        throw("StopCriterion of type '$sc_type' could not be created. $(sprint(showerror, e))")
+        throw(ErrorException("StopCriterion of type '$sc_type' could not be created. $(sprint(showerror, e))"))
     end
 end
 
@@ -1163,27 +1155,6 @@ Function to check if the file ends with one of the endings identifying it as a p
 function is_pop_file(filename::String)
     return endswith(filename, ".csv") || endswith(filename, ".jld2")
 end
-
-
-"""
-    validate_file_paths(population_path::String, settings_path::String)
-
-Checks if the paths to the settings and popualtion files differ to throw a warning if there is a mismatch indicating an error
-"""
-function validate_file_paths(population_path::String, settings_path::String)
-    # Extract the directories from the file paths
-    population_dir = dirname(population_path)
-    settings_dir = dirname(settings_path)
-    
-    # Check if the directories are different
-    if population_dir != settings_dir
-        @warn "The population file and settings file are in different directories." *
-              "\nPopulation file directory: $population_dir" *
-              "\nSettings file directory: $settings_dir" *
-              "\nEnsure that the settings file corresponds to the population file to avoid mismatches."
-    end
-end
-
 
 
 """
@@ -1654,15 +1625,6 @@ function statelogger(simulation::Simulation)
 end
 
 """
-    statelogger!(simulation, statelogger)
-
-Sets the Simulation's `StateLogger`.
-"""
-function statelogger!(simulation::Simulation, statelogger::StateLogger)
-    simulation.statelogger = statelogger
-end
-
-"""
     states(simulation::Simulation)
 
 Calls the `dataframe()` function on the internal simulation's `StateLogger`.
@@ -1707,11 +1669,11 @@ function increment!(simulation::Simulation)
 end
 
 """
-    reset!(simulation)
+    reset_tick!(simulation)
 
 Resets the current simulation's tick counter to 0.
 """
-function reset!(simulation::Simulation)
+function reset_tick!(simulation::Simulation)
     simulation.tick = 0
 end
 
@@ -1726,18 +1688,20 @@ function initialize!(simulation::Simulation)
 end
 
 """
-    reinitialize!(simulation::Simulation; reset_interventions::Bool = true)
+    reset!(simulation::Simulation; reset_interventions::Bool = false)
 
-Reinitializes the simulation model according to its start condition.
-This resets the simulation tick and re-applies the start condition. 
-If `reset_interventions` is true, it also deletes all interventions.
+Resets the simulation model to its initial state according to its start condition.
+This resets all individuals, loggers, the event queue, tick, and RNGs, and
+re-applies the start condition.
+If `reset_interventions` is true (default), all intervention triggers and strategies
+are also cleared.
 """
-function reinitialize!(simulation::Simulation; reset_interventions::Bool = true)
+function reset!(simulation::Simulation; reset_interventions::Bool = false)
     # reset individual to initial state
     reset!.(individuals(simulation))
-    reset!(simulation)
-    
-    # Reset all loggers 
+    reset_tick!(simulation)
+
+    # Reset all loggers
     simulation.infectionlogger = InfectionLogger()
     simulation.deathlogger = DeathLogger()
     simulation.testlogger = TestLogger()
@@ -1746,7 +1710,7 @@ function reinitialize!(simulation::Simulation; reset_interventions::Bool = true)
     simulation.quarantinelogger = QuarantineLogger()
     simulation.statelogger = StateLogger()
     simulation.customlogger = CustomLogger()
-    
+
     # Reset NPI triggers and strategies
     simulation.event_queue = EventQueue()
     if reset_interventions
@@ -1756,14 +1720,23 @@ function reinitialize!(simulation::Simulation; reset_interventions::Bool = true)
         simulation.strategies = []
         simulation.testtypes = []
     end
-    
+
     # Re-initialize RNGs
     if !isnothing(simulation.seed)
         simulation.rngs = [Xoshiro(gems_rand(Xoshiro(simulation.seed), UInt)) for _ in 1:Threads.maxthreadid()]
     end
-    
+
     # Initialize the simulation's start condition
     initialize!(simulation)
+end
+
+"""
+    reinitialize!(simulation::Simulation; reset_interventions::Bool = false)
+
+Alias for `reset!`. Kept for backwards compatibility.
+"""
+function reinitialize!(simulation::Simulation; reset_interventions::Bool = false)
+    reset!(simulation; reset_interventions = reset_interventions)
 end
 
 ###

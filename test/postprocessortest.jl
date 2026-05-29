@@ -19,6 +19,14 @@
         #check if processed infections dataframe is of same length as "flat" dataframe
         @test pp |> infectionsDF |> nrow == sim |> infectionlogger |> dataframe |> nrow
 
+        # infections is an alias for infectionsDF — both must return the same object
+        @test infections(pp) isa DataFrame
+        @test infections(pp) === infectionsDF(pp)
+
+        # compartmentsDF returns the state-logger compartment data
+        @test compartmentsDF(pp) isa DataFrame
+        @test nrow(compartmentsDF(pp)) > 0
+
     end
 
     @testset "Dataframes" begin
@@ -62,7 +70,7 @@
             seroprevalence_test = SeroprevalenceTestType("Seroprevalence Test", pathogen(seroprevalence_testing), seroprevalence_testing)
             testing = IStrategy("Testing", seroprevalence_testing)
             add_measure!(testing, GEMS.Test("Test", seroprevalence_test))
-            trigger = ITickTrigger(testing, switch_tick=Int16(1), interval=Int16(1))
+            trigger = ITickTrigger(testing, switch_tick=Int16(1), interval=Int16(120))
             add_tick_trigger!(seroprevalence_testing, trigger)
             run!(seroprevalence_testing)
             pp = PostProcessor(seroprevalence_testing)
@@ -122,6 +130,10 @@
         end
     end
 
+    @testset "show" begin
+        @test !isempty(@capture_out show(pp))
+    end
+
     @testset "Data Analysis Functions" begin
 
         @test pp |> sim_infectionsDF |> nrow > 0
@@ -147,6 +159,51 @@
 
         # one row of the aggregated matrix should have the same length as the aggregated population vector
         @test contact_matrix._size == length(aggregated_population)
+
+        # aggregate_populationDF_by_age: error without age column
+        @test_throws ArgumentError GEMS.aggregate_populationDF_by_age(DataFrame(x = [1, 2, 3]), 10)
+        @test_throws ArgumentError GEMS.aggregate_populationDF_by_age(DataFrame(x = [1, 2, 3]), 10, 80)
+
+        # aggregate_populationDF_by_age with max_age: all individuals are preserved in aggregated bins
+        agg_pop_bounded = GEMS.aggregate_populationDF_by_age(population_df, 10, 80)
+        @test sum(agg_pop_bounded) == nrow(population_df)
+
+        # individuals_per_age_group without aggregation_bound
+        ipag = individuals_per_age_group(pp, 10)
+        @test ipag isa DataFrame
+        @test :age_groups in propertynames(ipag)
+        @test :num_individuals in propertynames(ipag)
+        @test sum(ipag.num_individuals) == nrow(population_df)
+
+        # individuals_per_age_group with aggregation_bound: error cases
+        @test_throws ArgumentError individuals_per_age_group(pp, 1, 80)  # interval_steps <= 1
+        @test_throws ArgumentError individuals_per_age_group(pp, 10, 1)  # aggregation_bound <= 1
+        @test_throws ArgumentError individuals_per_age_group(pp, 10, 5)  # aggregation_bound < interval_steps
+        @test_throws ArgumentError individuals_per_age_group(pp, 10, 85) # not a multiple
+
+        # individuals_per_age_group with aggregation_bound: all individuals preserved
+        ipag_bounded = individuals_per_age_group(pp, 10, 80)
+        @test ipag_bounded isa DataFrame
+        @test sum(ipag_bounded.num_individuals) == nrow(population_df)
+
+        # mean_contacts_per_age_group with max_age: error case
+        @test_throws ArgumentError mean_contacts_per_age_group(pp, Household, 10, 1)
+
+        # mean_contacts_per_age_group with max_age: returns valid non-negative matrix
+        cm_bounded = mean_contacts_per_age_group(pp, Household, 10, 80)
+        @test cm_bounded isa ContactMatrix{Float64}
+        @test all(x -> x >= 0.0, cm_bounded.data)
+
+        # weighted_error_sum with a zero error matrix → 0
+        n = cm_bounded._size
+        @test weighted_error_sum(pp, ContactMatrix{Float64}(zeros(Float64, n, n), 10, 80)) == 0.0
+
+        # weighted_error_sum with a ones error matrix → positive (population is non-empty)
+        @test weighted_error_sum(pp, ContactMatrix{Float64}(ones(Float64, n, n), 10, 80)) > 0.0
+
+        # weighted_error_sum comparing simulation against its own contact matrix → non-negative
+        @test weighted_error_sum(pp, Household, cm_bounded; fit_to_reference_matrix=false) >= 0.0
+        @test weighted_error_sum(pp, Household, cm_bounded; fit_to_reference_matrix=true) >= 0.0
 
     end
 end

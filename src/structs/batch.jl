@@ -1,11 +1,3 @@
-###  PLACEHOLDER
-
-function SimConstructor(; simargs...)
-    return Simulation()
-end
-
-#### REMOVE PLACEHODERS
-
 export Batch
 export add!, remove!, simulations
 
@@ -33,15 +25,13 @@ mutable struct Batch
     """
     function Batch(;n_runs::Integer = 0, print_infos::Bool = false, simargs...)
         prev_print_state = GEMS.PRINT_INFOS
-        
-        sims = []
+        sims = Vector{Simulation}()
         for i in 1:n_runs
             printinfo("Instantiating Simulation $i/$n_runs in Batch")
             GEMS.PRINT_INFOS = print_infos
-            SimConstructor(;simargs...)
+            push!(sims, Simulation(;simargs...))
             GEMS.PRINT_INFOS = prev_print_state
         end
-
         return new(sims)
     end
 
@@ -113,8 +103,8 @@ Adds a `Simulation` to a `Batch`.
 """
 function add!(sim::Simulation, batch::Batch)
     # verify that the added simulation is not identical with any of the previously added
-    objectid(sim) in map(objectid, batch.simulations) ? throw("This simulation is already in the batch!") : nothing
-    objectid(sim |> population) in map(s -> objectid(population(s)), batch.simulations) ? throw("This simulation uses the same population as another simulation in the batch!") : nothing
+    objectid(sim) in map(objectid, batch.simulations) ? throw(ArgumentError("This simulation is already in the batch!")) : nothing
+    objectid(sim |> population) in map(s -> objectid(population(s)), batch.simulations) ? throw(ArgumentError("This simulation uses the same population as another simulation in the batch!")) : nothing
 
     push!(batch.simulations, sim)
 end

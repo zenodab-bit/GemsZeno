@@ -35,7 +35,8 @@
         @test typeof(i_strategy) === IStrategy
         @test name(i_strategy) === "i_strategy"
         @test measures(i_strategy) == MeasureEntry[]
-        @test condition(i_strategy) === true
+        @test GEMS.condition(i_strategy) isa Function
+        @test GEMS.condition(i_strategy)(nothing) == true
         add_strategy!(sim, i_strategy)
         @test strategies(sim)[1] === i_strategy
     end
@@ -44,9 +45,49 @@
         @test typeof(s_strategy) === SStrategy
         @test name(s_strategy) === "s_strategy"
         @test measures(s_strategy) == MeasureEntry[]
-        @test condition(s_strategy) === true
+        @test GEMS.condition(s_strategy) isa Function
+        @test GEMS.condition(s_strategy)(nothing) == true
         add_strategy!(sim, s_strategy)
         @test strategies(sim)[2] === s_strategy
+    end
+
+    @testset "Strategy Condition Getter and Base.show" begin
+        sim_show = Simulation()
+
+        # GEMS.condition(str::Strategy) is shadowed throughout this testset by the
+        # local variable `condition = (_) -> true` defined at the top — the qualified
+        # name must be used here to actually exercise the getter method.
+
+        # default condition is x -> true: the stored function returns true for any input
+        default_str = IStrategy("show_default", sim_show)
+        @test GEMS.condition(default_str) isa Function
+        @test GEMS.condition(default_str)(nothing) == true
+
+        # non-trivial condition: the stored function preserves the predicate's logic
+        age_str = IStrategy("show_age", sim_show, condition = i -> age(i) > 65)
+        young = Individual(id=1, age=30, sex=1)
+        elder = Individual(id=2, age=70, sex=1)
+        @test GEMS.condition(age_str)(young) == false
+        @test GEMS.condition(age_str)(elder) == true
+
+        # same for SStrategy
+        s_default_str = SStrategy("show_s_default", sim_show)
+        @test GEMS.condition(s_default_str) isa Function
+        @test GEMS.condition(s_default_str)(nothing) == true
+
+        # Base.show with no measures: output contains type name and strategy name
+        output_empty = @capture_out show(default_str)
+        @test occursin("IStrategy", output_empty)
+        @test occursin("show_default", output_empty)
+
+        # Base.show with measures: each measure appears with its offset
+        add_measure!(default_str, SelfIsolation(7))
+        add_measure!(default_str, SelfIsolation(14), offset = 2)
+        output_measures = @capture_out show(default_str)
+        @test occursin("IStrategy", output_measures)
+        @test occursin("SelfIsolation", output_measures)
+        @test occursin("0:", output_measures)
+        @test occursin("2:", output_measures)
     end
 
     @testset "SelfIsolation Measure" begin
@@ -159,7 +200,7 @@
         @test negative_followup(test_measure4) === i_strategy
 
         #test with no input
-        @test_throws "Plesae provide a test series name, i.e. by supplying a keyworded argument name = 'my_test_series'" begin
+        @test_throws ArgumentError begin
             test_measure5 = GEMS.Test()
         end
 
@@ -218,7 +259,7 @@
         @test negative_followup(s_test_measure4) === i_strategy
 
         #test with no input
-        @test_throws "Plesae provide a test series name, i.e. by supplying a keyworded argument name = 'my_test_series'" begin
+        @test_throws ArgumentError begin
             s_test_measure5 = GEMS.Test()
         end
 
@@ -243,22 +284,21 @@
 
         @test process_measure(sim, i, trace_infectious) === nothing
 
-        try
-            TraceInfectiousContacts(i_strategy, success_rate=2.0)
-            @test false
-        catch e
-            @test e == "success_rate parameter must be between 0 and 1"
-        end
+        @test_throws ArgumentError TraceInfectiousContacts(i_strategy, success_rate=2.0)
 
         pop = Population(n=2, avg_household_size=2, avg_school_size=2, avg_office_size=2, rng = Xoshiro())
         sim3 = Simulation(population=pop, transmission_rate=1.0, household_contacts=1.0)
         i_strategy3 = IStrategy("i_strategy3", sim3)
         trace_infectious2 = TraceInfectiousContacts(i_strategy3, success_rate=1.0)
-        infect!(first(individuals(sim3)), Int16(0), pathogen(sim3), rng = Xoshiro())
-        #step!(sim3)
-        contacts = process_measure(sim3, first(individuals(sim3)), trace_infectious2)
-        #println(contacts) #contacts always nothing TODO
-        #@test contacts.focal_objects === [individuals(sim3)[2]] #why doesnt that work?
+        ind1 = first(individuals(sim3))
+        ind2 = individuals(sim3)[2]
+        infect!(ind1, Int16(0), pathogen(sim3), rng = Xoshiro())
+        ind1.infectiousness_onset = Int16(0)
+        infect!(ind2, Int16(0), pathogen(sim3), sim = sim3, infecter_id = id(ind1), rng = Xoshiro())
+        contacts = process_measure(sim3, ind1, trace_infectious2)
+        @test contacts !== nothing
+        @test length(contacts.focal_objects) == 1
+        @test contacts.focal_objects[1] === ind2
     end
 
     @testset "Custom I Measure" begin
@@ -356,13 +396,13 @@
         @test all(name in strategy_names for name in expected_strategies)
 
         #test errors thrown
-        @test_throws "The sample_size for the FindMembers()-measure must be a positive integer." begin
+        @test_throws ArgumentError begin
             find_members_false_sample_size = FindMembers(i_strategy, sample_size=-2)
         end
-        @test_throws "The sample_fraction for the FindMembers()-measure must be between 0 and 1." begin
+        @test_throws ArgumentError begin
             find_members_false_sample_fraction = FindMembers(i_strategy, sample_fraction=2.0)
         end
-        @test_throws "Please provide either a sample_size or a sample_fraction. Both don't go together." begin
+        @test_throws ArgumentError begin
             find_members_sample_size_and_sample_fraction = FindMembers(i_strategy, sample_size=1, sample_fraction=0.5)
         end
     end
@@ -377,8 +417,10 @@
 
         @test sampling_method(change_contact_method) === contact_parameter_sampling
 
-        #possible bug in this function:
-        #process_measure(sim, gs, change_contact_method) TODO
+        @test contact_sampling_method(gs) === rs
+        process_measure(sim, gs, change_contact_method)
+        @test contact_sampling_method(gs) isa ContactparameterSampling
+        @test contact_sampling_method(gs).contactparameter == 5.0
     end
 
     @testset "Close and Open Setting Measure" begin
@@ -456,7 +498,7 @@
         @test negative_followup(pool_test4) === s_strategy
 
         #test with no input
-        @test_throws "Plesae provide a test series name, i.e. by supplying a keyworded argument name = 'my_test_series'" begin
+        @test_throws ArgumentError begin
             pool_test5 = PoolTest()
         end
 
@@ -474,6 +516,56 @@
 
         @test follow_up_strategy2 === s_strategy
     end
+
+    @testset "Vaccinate Measure" begin
+        vacc_sim = Simulation()
+        fu_strategy = IStrategy("i_strategy", vacc_sim)
+        my_vaccine = Vaccine(id = Int8(1), name = "TestVax")
+ 
+        # struct and accessors
+        vacc_measure = Vaccinate(my_vaccine)
+        vacc_with_followup = Vaccinate(my_vaccine, follow_up = fu_strategy)
+ 
+        @test vaccine(vacc_measure) === my_vaccine
+        @test follow_up(vacc_measure) === nothing
+        @test follow_up(vacc_with_followup) === fu_strategy
+ 
+        # vaccinate an individual
+        ind_a = Individual(id = 10, sex = 0, age = 30)
+        result = process_measure(vacc_sim, ind_a, vacc_measure)
+ 
+        @test isvaccinated(ind_a) == true
+        @test vaccine_id(ind_a) == id(my_vaccine)
+        @test vaccination_tick(ind_a) == tick(vacc_sim)
+        @test number_of_vaccinations(ind_a) == 1
+        @test result.focal_objects[1] === ind_a
+        @test result.follow_up === nothing
+ 
+        # follow_up strategy is forwarded
+        ind_b = Individual(id = 11, sex = 1, age = 25)
+        result_b = process_measure(vacc_sim, ind_b, vacc_with_followup)
+ 
+        @test isvaccinated(ind_b) == true
+        @test result_b.focal_objects[1] === ind_b
+        @test result_b.follow_up === fu_strategy
+ 
+        # re-vaccination increments dose count
+        result_booster = process_measure(vacc_sim, ind_a, vacc_measure)
+ 
+        @test number_of_vaccinations(ind_a) == 2
+        @test result_booster.focal_objects[1] === ind_a
+ 
+        # measure round-trips through add_measure!
+        vacc_strategy = IStrategy("vaccinate", vacc_sim)
+        add_measure!(vacc_strategy, Vaccinate(my_vaccine))
+ 
+        @test length(vacc_strategy.measures) == 1
+        @test vacc_strategy.measures[1].measure isa Vaccinate
+        @test vaccine(vacc_strategy.measures[1].measure) === my_vaccine
+    end
+
+
+
 
     @testset "Test All Measure" begin
         test = TestType("Test", pathogen(sim), sim)
@@ -503,7 +595,7 @@
         @test GEMS.reportable(test_all4) === false
 
         #test with no input
-        @test_throws "Plesae provide a test series name, i.e. by supplying a keyworded argument name = 'my_test_series'" begin
+        @test_throws ArgumentError begin
             test_all5 = TestAll()
         end
 
@@ -568,12 +660,12 @@
         @test interval(s_tick_trigger2) == 7
 
         #test errors
-        @test_throws "The switch_tick must either be a positive integer or -1" ITickTrigger(i_strategy, switch_tick=Int16(-2))
-        @test_throws "The interval must either be a positive integer or -1" ITickTrigger(i_strategy, interval=Int16(-2))
+        @test_throws ArgumentError ITickTrigger(i_strategy, switch_tick=Int16(-2))
+        @test_throws ArgumentError ITickTrigger(i_strategy, interval=Int16(-2))
 
-        @test_throws "The first argument must be a DataType inheriting from 'Setting'" STickTrigger(DataType, s_strategy)
-        @test_throws "The switch_tick must either be a positive integer or -1" STickTrigger(Office, s_strategy, switch_tick=Int16(-2))
-        @test_throws "The interval must either be a positive integer or -1" STickTrigger(Office, s_strategy, interval=Int16(-2))
+        @test_throws ArgumentError STickTrigger(DataType, s_strategy)
+        @test_throws ArgumentError STickTrigger(Office, s_strategy, switch_tick=Int16(-2))
+        @test_throws ArgumentError STickTrigger(Office, s_strategy, interval=Int16(-2))
 
         #test trigger function
         sim = Simulation()
@@ -671,7 +763,7 @@
         add_measure!(custom_i_strategy, custom_i_measure)
         symptom_trigger = SymptomTrigger(custom_i_strategy)
         add_symptom_trigger!(sim, symptom_trigger)
-        @test_throws "The condition that you passed to IStrategy 'custom i strategy' does not return a boolean value." GEMS.trigger(symptom_trigger, i, sim)
+        @test_throws ErrorException GEMS.trigger(symptom_trigger, i, sim)
 
         s_measure_function = (s, simobj) -> (size(s) > 5 ? close!(s) : nothing)
         custom_s_measure = CustomSMeasure(s_measure_function)
@@ -679,7 +771,7 @@
         add_measure!(custom_s_strategy, custom_s_measure)
         s_tick_trigger = STickTrigger(Office, custom_s_strategy)
         add_tick_trigger!(sim, s_tick_trigger)
-        @test_throws "The condition that you passed to SStrategy 'custom s strategy' does not return a boolean value." GEMS.trigger(s_tick_trigger, sim)
+        @test_throws ErrorException GEMS.trigger(s_tick_trigger, sim)
 
         #test should_fire function
         @testset "Testing should_fire" begin

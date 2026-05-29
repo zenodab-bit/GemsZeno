@@ -1,4 +1,3 @@
-
 @testset "Utils" begin
 
     @testset verbose = true "Matrix Aggregation" begin
@@ -31,6 +30,31 @@
         # test interval_steps > 1
         @test_throws ArgumentError aggregate_matrix(matrix, 1, 2)
 
+        non_square = [1 2 3; 4 5 6]
+        vector2 = [1, 2, 3, 4, 5]
+
+        # non-square matrix (2-arg and 3-arg overloads)
+        @test_throws ArgumentError aggregate_matrix(non_square, 2)
+        @test_throws ArgumentError aggregate_matrix(non_square, 2, 2)
+
+        # interval_steps <= 1 (all overloads)
+        @test_throws ArgumentError aggregate_matrix(matrix, 1)
+        @test_throws ArgumentError aggregate_matrix(vector2, 1)
+        @test_throws ArgumentError aggregate_matrix(matrix, 1, 2)
+        @test_throws ArgumentError aggregate_matrix(vector2, 1, 2)
+
+        # aggregation_bound <= 1 (3-arg overloads)
+        @test_throws ArgumentError aggregate_matrix(matrix, 2, 1)
+        @test_throws ArgumentError aggregate_matrix(vector2, 2, 1)
+
+        # aggregation_bound < interval_steps (3-arg overloads)
+        @test_throws ArgumentError aggregate_matrix(matrix, 3, 2)
+        @test_throws ArgumentError aggregate_matrix(vector2, 3, 2)
+
+        # aggregation_bound not a multiple of interval_steps (3-arg overloads)
+        @test_throws ArgumentError aggregate_matrix(matrix, 2, 3)
+        @test_throws ArgumentError aggregate_matrix(vector2, 2, 3)
+
     end
 
     @testset "isdate tests" begin
@@ -57,7 +81,7 @@
         end
     end
     @testset "basefolder test" begin
-        path = basefolder()
+        path = GEMS.basefolder()
         @test isdir(path)  # Es sollte ein existierendes Verzeichnis sein
     end
     @testset "identical tests" begin
@@ -94,15 +118,122 @@
         @test v[1] == Thing(1)
         @test v[2] == Thing(2)
 =#
-        # Länge 1
+        # length 1: returns immediately, vector unchanged
         v = [42]
         bad_unique(v)
         @test v == [42]
+
+        # length > 1: duplicate removed, unique values preserved
+        v = [1, 1, 2]
+        bad_unique(v)
+        @test length(v) == 2
+        @test 1 in v
+        @test 2 in v
+
+        # length > 1: no duplicates, vector unchanged
+        v = [1, 2, 3]
+        bad_unique(v)
+        @test v == [1, 2, 3]
     end
+
+    @testset "find_subtype" begin
+        @test GEMS.find_subtype("Household", Setting) == Household
+        @test_throws ArgumentError GEMS.find_subtype("NonExistentType", Setting)
+    end
+
+    @testset "is_existing_subtype" begin
+        @test GEMS.is_existing_subtype("Household", Setting) == true
+        @test GEMS.is_existing_subtype("NonExistentType", Setting) == false
+        # concrete_subtypes may return "GEMS.Household" - should still match on last segment
+        @test GEMS.is_existing_subtype("Household", IndividualSetting) == true
+    end
+
+    @testset "county_data" begin
+        df = county_data()
+        @test df isa DataFrame
+        @test :ags in propertynames(df)
+        @test :gen in propertynames(df)
+        @test nrow(df) > 0
+        @test eltype(df.ags) == AGS
+        @test eltype(df.gen) == String
+    end
+
+    @testset "municipality_data" begin
+        df = municipality_data()
+        @test df isa DataFrame
+        @test :ags in propertynames(df)
+        @test :gen in propertynames(df)
+        @test nrow(df) > 0
+        @test eltype(df.ags) == AGS
+        @test eltype(df.gen) == String
+    end
+
+    @testset "state_data" begin
+        df = state_data()
+        @test df isa DataFrame
+        @test :ags in propertynames(df)
+        @test :gen in propertynames(df)
+        @test nrow(df) > 0
+        @test eltype(df.ags) == AGS
+        @test eltype(df.gen) == String
+    end
+
     @testset "get_missing_docs test" begin
         missing = get_missing_docs()
         @test missing isa Vector{Symbol}  # Es sollte ein Symbol-Vektor sein
     end
+
+    @testset "aggregate_dicts" begin
+        # empty input
+        @test aggregate_dicts(Vector{Dict}()) == Dict()
+
+        # single dict
+        d1 = Dict("a" => 1.0, "b" => 2.0)
+        result = aggregate_dicts([d1])
+        @test haskey(result, "a")
+        @test haskey(result, "b")
+        @test result["a"]["mean"] == 1.0
+        @test result["b"]["mean"] == 2.0
+
+        # multiple dicts
+        d2 = Dict("a" => 3.0, "b" => 4.0)
+        result2 = aggregate_dicts([d1, d2])
+        @test result2["a"]["mean"] == 2.0
+        @test result2["b"]["mean"] == 3.0
+        @test result2["a"]["min"] == 1.0
+        @test result2["a"]["max"] == 3.0
+    end
+
+    @testset "aggregate_dfs_multcol" begin
+        df1 = DataFrame(id = [1, 2], a = [1.0, 2.0])
+        df2 = DataFrame(id = [1, 2], b = [3.0, 4.0])
+
+        # mismatched columns
+        @test_throws ArgumentError aggregate_dfs_multcol([df1, df2], :id)
+
+        # empty dataframes
+        df_empty = DataFrame()
+        @test_throws ArgumentError aggregate_dfs_multcol([df_empty, df_empty], :id)
+
+        # key column missing
+        df3 = DataFrame(a = [1.0], b = [2.0])
+        df4 = DataFrame(a = [3.0], b = [4.0])
+        @test_throws ArgumentError aggregate_dfs_multcol([df3, df4], :id)
+    end
+
+    @testset "parameters" begin
+        d = Normal(2.0, 0.5)
+        p = parameters(d)
+        @test p["distribution"] == string(d)
+        @test isapprox(p["mean"], 2.0, atol = 1e-10)
+        @test isapprox(p["std"], 0.5, atol = 1e-10)
+
+        d2 = Uniform(0.0, 1.0)
+        p2 = parameters(d2)
+        @test isapprox(p2["mean"], 0.5, atol = 1e-10)
+        @test isapprox(p2["std"], 1/sqrt(12), atol = 1e-10)
+    end
+
     @testset "calculate_absolute_error" begin
         m1 = [2 2; 2 2]
         m2 = [3 1; 4 2]
@@ -121,6 +252,21 @@
         om2 = [1 2]
         pm2 = [1 2; 3 4]
         @test_throws ArgumentError GEMS.find_alpha(om2, pm2)
+    end
+
+    @testset "gemscolors" begin
+        @test isempty(gemscolors(0))
+        @test isempty(gemscolors(-1))
+
+        @test length(gemscolors(1)) == 1
+        @test length(gemscolors(2)) == 2
+
+        for l in 3:9
+            @test length(gemscolors(l)) == l
+        end
+
+        @test length(gemscolors(10)) == 10
+        @test length(gemscolors(15)) == 15
     end
 
     @testset "Base.show methods" begin

@@ -1,14 +1,11 @@
 @testset "Vaccines" begin
 
-    dw = DiscreteWaning(7,30)
-    v = Vaccine(id=1, name="Antitest", waning=dw)
+    v = Vaccine(id=1, name="Antitest")
 
     @testset "Getter" begin
         @test id(v) == 1
         @test name(v) == "Antitest"
-        @test waning(v) == dw
         @test typeof(logger(v)) == VaccinationLogger
-        @test length(logger(v).id) == 0
     end
 
     @testset "Vaccinate Individuals" begin

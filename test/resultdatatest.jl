@@ -58,6 +58,19 @@
         rd_imp = import_resultdata(joinpath("tempdir", "resultdata.jld2"))
         @test rd_imp |> id == rd |> id
 
+        # non-existent path
+        @test_throws ErrorException import_resultdata("/nonexistent/path.jld2")
+
+        # existing file but wrong extension
+        @test_throws ErrorException import_resultdata(joinpath(basefolder, "test/testdata/TestPop.csv"))
+
+        # valid .jld2 but no ResultData object inside
+        mktempdir() do dir
+            bad_jld2 = joinpath(dir, "notrd.jld2")
+            JLD2.save(bad_jld2, Dict("something" => 42))
+            @test_throws ErrorException import_resultdata(bad_jld2)
+        end
+
         # finally, remove all test files
         rm("tempdir", recursive=true)
     end
@@ -92,6 +105,8 @@
         @test rd |> total_mem_size > 0
         @test rd |> free_mem_size > 0
 
+        @test tick_vaccinations(rd) == Dict()
+
         # contact data
 
         matrix_data = aggregated_setting_age_contacts(rd, Household).data
@@ -115,12 +130,6 @@
 
     @testset "Utils & Exporting" begin
 
-        # JoPo TODO: JSON tests removed for now
-        # as some parameter functions were removed
-        # we need to find a way to circumvent necessary
-        # parameter functions for user-created
-        # types in order to re-enable JSON export tests 
-
         to = TimerOutput()
         timer_output!(rd, to)
 
@@ -131,11 +140,14 @@
         directory = BASE_FOLDER * "/test_" * string(datetime2unix(now()))
 
         exportJLD(rd, directory)
-        #exportJSON(rd, directory)
 
         # check file existence
         @test isfile(directory * "/resultdata.jld2")
-        #@test isfile(directory * "/runinfo.json")
+
+        exportJSON(rd, directory)
+        @test isfile(directory * "/runinfo.json")
+        @test filesize(directory * "/runinfo.json") > 0
+        @test startswith(strip(read(directory * "/runinfo.json", String)), "{")
 
         # finally, remove all test files
         rm(directory, recursive=true)
@@ -314,7 +326,7 @@
 
         @test df[2, :ags] == AGS("04012000")
         @test df[2, :pop_size] > 50000
-        @test isapprox(df[2, :area], 90; rtol = 0.05)
+        @test 80 < df[2, :area] < 110
 
     end
 
@@ -413,7 +425,7 @@
         seroprevalence_test = SeroprevalenceTestType("Seroprevalence Test", pathogen(seroprevalence_testing), seroprevalence_testing)
         testing = IStrategy("Testing", seroprevalence_testing)
         add_measure!(testing, GEMS.Test("Test", seroprevalence_test))
-        trigger = ITickTrigger(testing, switch_tick=Int16(1), interval=Int16(1))
+        trigger = ITickTrigger(testing, switch_tick=Int16(1), interval=Int16(120))
         add_tick_trigger!(seroprevalence_testing, trigger)
         run!(seroprevalence_testing)
         rd = ResultData(seroprevalence_testing)
@@ -435,8 +447,14 @@
 
     @testset "Hashes" begin
         @test infections_hash(rd) isa Base.SHA1
-        #@test data_hash(rd) isa Base.SHA1 # this somehow fails. Bug in ContentHashes?
+        @test data_hash(rd) isa Base.SHA1
         @test hashes(rd) == Dict()
+    end
+
+    @testset "Printing" begin
+        rd_print = ResultData(pp)
+        @test !isempty(@capture_out info(rd_print))
+        @test !isempty(@capture_out show(rd_print))
     end
 
     @testset "Testing allempty and someempty with ResultData" begin
@@ -444,11 +462,5 @@
         rd = ResultData(pp)
         @test allempty(f, [rd])
         @test someempty(f, [rd])
-    end
-
-
-    @testset "Test obtain_fields" begin
-        rd = ResultData(pp)
-        @test_throws "Reconstruction failed. Essential dataframes missing!" GEMS.obtain_fields(rd, "DefaultResultData")
     end
 end

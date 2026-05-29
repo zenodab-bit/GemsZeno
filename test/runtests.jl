@@ -33,11 +33,15 @@ using Suppressor
         "postprocessortest.jl",
         "resultdatatest.jl",
         "batchtest.jl",
+        "rngtest.jl",
         "utilstest.jl",
         "contactsamplingtest.jl",
         "contactmatrixtest.jl",
+        "contactdistributiontest.jl",
         "interventionstest.jl",
-        "codevalidationtest.jl"
+        "vaccinetest.jl",
+        "codevalidationtest.jl",
+        "movietest.jl"
     ]
 
     println("Begin to run test cases.")

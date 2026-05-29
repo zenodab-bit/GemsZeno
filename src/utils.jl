@@ -38,7 +38,7 @@ end
 ### TYPING AND SUBTYPES
 ###
 
-function concrete_subtypes(type::Type)::Vector{Type}
+function concrete_subtypes(type::Type)::Vector{DataType}
     if subtypes(type) == []
         if !isabstracttype(type)
             return [type]
@@ -95,7 +95,7 @@ function find_subtype(subtype::String, type::Type)::Type
     subtypes = concrete_subtypes(type)
     idx = findfirst(item -> item[end] == subtype, split.(string.(subtypes),"."))
     if idx === nothing
-        throw("$subtype is not a subtype of "*string(type))
+        throw(ArgumentError("$subtype is not a subtype of "*string(type)))
     else
         return subtypes[idx]
     end
@@ -115,13 +115,13 @@ function get_subtype(type::String, parent::Type)
     # of the same name. This can happen if GEMS is used as a dependency in
     # another module
     doubles = duplicates(structname.(stypes))
-    !isempty(doubles) ? throw("There are multiple $(structname(parent)) structs of the same name: $(join(doubles, ", ")). Did you (re-)define them in a custom module?") : nothing
+    !isempty(doubles) ? throw(ErrorException("There are multiple $(structname(parent)) structs of the same name: $(join(doubles, ", ")). Did you (re-)define them in a custom module?")) : nothing
 
     # find right struct's index
     i = findfirst(x -> x == structname(type), structname.(stypes))
 
     # if type is not subtype of parent, throw exception
-    isnothing(i) ? throw("'$(structname(type))' is not a known subtype of $(structname(parent)); try any of these: $(join(structname.(stypes), ", "))") : nothing
+    isnothing(i) ? throw(ArgumentError("'$(structname(type))' is not a known subtype of $(structname(parent)); try any of these: $(join(structname.(stypes), ", "))")) : nothing
 
     # return index
     return stypes[i]
@@ -250,11 +250,11 @@ function aggregate_dfs_multcol(dfs::Vector{DataFrame}, key::Symbol)
     columns = names(dfs[1])
 
     if ! all(names(df) == columns for df in dfs)
-        @error "The dataframes do not have identical columns!"
+        throw(ArgumentError("The dataframes do not have identical columns!"))
     elseif length(columns) == 0
-        @error "The Dataframes are empty!"
+        throw(ArgumentError("The Dataframes are empty!"))
     elseif ! (string(key) in columns)
-        @error "The Dataframes are empty!"
+        throw(ArgumentError("The Dataframes are empty!"))
     end
     # Remove key from columns to ignore it when calculating stats
     deleteat!(columns, findfirst(x -> x == string(key), columns))
@@ -699,11 +699,12 @@ function bad_unique(vec)
         return
     end
     for (i, entry) in enumerate(vec)
-        for j in (i+1):length(vec)
-            if entry == vec[j]
+        j = i + 1
+        while j <= length(vec)
+            if entry == vec[j] || identical(entry, vec[j])
                 deleteat!(vec, j)
-            elseif identical(entry, vec[j])
-                deleteat!(vec, j)
+            else
+                j += 1
             end
         end
     end
@@ -742,27 +743,20 @@ end
     clean_result!(dict::Dict)
 
 Helper function to clean data for JSON output.
-Also uses parameter function for the StartCondition, Vaccine and Pathogen.
 
 """
 function clean_result!(dict::Dict)
     for (key, val) in dict
         if isa(val, DataFrame) || isa(val, Matrix)
             delete!(dict, key)
-        elseif isa(val, StartCondition)
-            dict[key] = parameters(val)
-        elseif isa(val, StopCriterion)
-            dict[key] = parameters(val)
+        elseif isa(val, StartCondition) || isa(val, StopCriterion)
+            dict[key] = Dict("type" => string(typeof(val)))
         elseif isa(val, Vector{<:StartCondition})
-            dict[key] = [parameters(v) for v in val]
-        elseif isa(val, Pathogen)
-            dict[key] = parameters(val)
-        elseif isa(val, Vector{Pathogen})
-            dict[key] = [parameters(v) for v in val]
-        elseif isa(val, Vaccine)
-            dict[key] = parameters(val)
-        elseif isa(val, Vector{Vaccine})
-            dict[key] = [parameters(v) for v in val]
+            dict[key] = [Dict("type" => string(typeof(v))) for v in val]
+        elseif isa(val, Pathogen) || isa(val, Vaccine)
+            dict[key] = Dict("id" => id(val), "name" => name(val))
+        elseif isa(val, Vector{Pathogen}) || isa(val, Vector{Vaccine})
+            dict[key] = [Dict("id" => id(v), "name" => name(v)) for v in val]
         elseif isa(val, Dict)
             clean_result!(dict[key])
             if length(dict[key]) == 0
@@ -967,7 +961,7 @@ county- (`level = 2`) or municipality- (`level = 3`) shapes are returned.
 """
 function germanshapes(level::Int64)
     # check if level is between 1 and 3
-    !(1 <= level <= 3) ? throw("The level must be either 1 (States), 2 (Counties), or 3 (Municipalities)") : nothing
+    !(1 <= level <= 3) ? throw(ArgumentError("The level must be either 1 (States), 2 (Counties), or 3 (Municipalities)")) : nothing
     
     lookups = Dict(1 => "LAN", 2 => "KRS", 3 => "GEM")
     filename = GERMAN_SHAPEFILE(lookups[level])

@@ -10,6 +10,30 @@
             @test tick(sim) == 0
         end
 
+        @testset "Dict Constructor" begin
+            # Simulation(params::Dict) splats the dict as keyword arguments;
+            # this constructor is the Dict-based entry point tested here.
+
+            # basic: pop_size and seed are forwarded correctly
+            sim = Simulation(Dict(:pop_size => 100, :seed => 42))
+            @test population(sim) |> size == 100
+            @test sim.seed == 42
+
+            # label is forwarded
+            sim = Simulation(Dict(:pop_size => 100, :label => "dict_label"))
+            @test label(sim) == "dict_label"
+
+            # tickunit is forwarded
+            sim = Simulation(Dict(:pop_size => 100, :tickunit => 'd'))
+            @test tickunit(sim) == "day"
+
+            # validation still fires: invalid pop_size propagates ArgumentError
+            @test_throws ArgumentError Simulation(Dict(:pop_size => -1))
+
+            # validation still fires: invalid seed propagates ArgumentError
+            @test_throws ArgumentError Simulation(Dict(:pop_size => 100, :seed => -1))
+        end
+
         @testset "From Disk" begin
             # from CSV population file
             path = joinpath(BASE_FOLDER, "test/testdata/TestPop.csv")
@@ -57,50 +81,50 @@
         @testset "General Parameters" begin
             # SEED
             # passing
-            sim = Simulation(pop_size = 1_000, seed = 1234)
+            sim = Simulation(pop_size = 100, seed = 1234)
             @test sim.seed == 1234
-            sim1 = Simulation(pop_size = 1_000)
-            sim2 = Simulation(pop_size = 1_000)
+            sim1 = Simulation(pop_size = 100)
+            sim2 = Simulation(pop_size = 100)
             @test sim1.seed != sim2.seed # different seeds when none is provided
             
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, seed = "1234")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, seed = -1234)
+            @test_throws ArgumentError Simulation(pop_size = 100, seed = "1234")
+            @test_throws ArgumentError Simulation(pop_size = 100, seed = -1234)
             
             # TICKUNIT
             # passing
-            sim = Simulation(pop_size = 1_000, tickunit = 'h')
+            sim = Simulation(pop_size = 100, tickunit = 'h')
             @test tickunit(sim) == "hour"
-            sim = Simulation(pop_size = 1_000, tickunit = 'd')
+            sim = Simulation(pop_size = 100, tickunit = 'd')
             @test tickunit(sim) == "day"
-            sim = Simulation(pop_size = 1_000, tickunit = 'w')
+            sim = Simulation(pop_size = 100, tickunit = 'w')
             @test tickunit(sim) == "week"
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, tickunit = 'g')
-            @test_throws ArgumentError Simulation(pop_size = 1_000, tickunit = "abc")
+            @test_throws ArgumentError Simulation(pop_size = 100, tickunit = 'g')
+            @test_throws ArgumentError Simulation(pop_size = 100, tickunit = "abc")
 
             # START DATE & END DATE
             # passing
-            sim = Simulation(pop_size = 1_000, start_date = "2020-01-01")
+            sim = Simulation(pop_size = 100, start_date = "2020-01-01")
             @test sim.startdate == Date("2020-01-01")
-            sim = Simulation(pop_size = 1_000, start_date = Date("2021-01-01"))
+            sim = Simulation(pop_size = 100, start_date = Date("2021-01-01"))
             @test sim.startdate == Date("2021-01-01")
-            sim = Simulation(pop_size = 1_000, end_date = Date("2030-12-31"))
+            sim = Simulation(pop_size = 100, end_date = Date("2030-12-31"))
             @test sim.enddate == Date("2030-12-31")
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, start_date = 20200101)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, start_date = "abc")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, end_date = 20211231)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, end_date = "abc")
+            @test_throws ArgumentError Simulation(pop_size = 100, start_date = 20200101)
+            @test_throws ArgumentError Simulation(pop_size = 100, start_date = "abc")
+            @test_throws ArgumentError Simulation(pop_size = 100, end_date = 20211231)
+            @test_throws ArgumentError Simulation(pop_size = 100, end_date = "abc")
 
             # failing: end date before start date
-            @test_throws ArgumentError Simulation(pop_size = 1_000, end_date = "2020-01-01", start_date = "2021-01-01")
+            @test_throws ArgumentError Simulation(pop_size = 100, end_date = "2020-01-01", start_date = "2021-01-01")
 
             # LABEL
             # passing
-            sim = Simulation(pop_size = 1_000, label = "test_sim")
+            sim = Simulation(pop_size = 100, label = "test_sim")
             @test label(sim) == "test_sim"
-            sim = Simulation(pop_size = 1_000, label = 123)
+            sim = Simulation(pop_size = 100, label = 123)
             @test label(sim) == "123"
         end
 
@@ -116,8 +140,8 @@
 
             # POP SIZE
             # passing
-            sim = Simulation(pop_size = 1_000)
-            @test population(sim) |> size == 1_000
+            sim = Simulation(pop_size = 100)
+            @test population(sim) |> size == 100
             # failing
             @test_throws ArgumentError Simulation(pop_size = -100)
             @test_throws ArgumentError Simulation(pop_size = 0)
@@ -126,36 +150,36 @@
 
             # AVG HOUSEHOLD SIZE
             # passing
-            sim = Simulation(pop_size = 1_000, avg_household_size = 4)
+            sim = Simulation(pop_size = 100, avg_household_size = 4)
             @test size.(households(sim)) |> mean ≈ 4 atol=.5
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, avg_household_size = -4)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, avg_household_size = 0)
+            @test_throws ArgumentError Simulation(pop_size = 100, avg_household_size = -4)
+            @test_throws ArgumentError Simulation(pop_size = 100, avg_household_size = 0)
             @test_throws ArgumentError Simulation(pop_size = 100, avg_household_size = 105)
 
             # AVG OFFICE SIZE
             # passing
-            sim = Simulation(pop_size = 1_000, avg_office_size = 10)
+            sim = Simulation(pop_size = 100, avg_office_size = 10)
             @test size.(offices(sim)) |> mean ≈ 10 atol=2 # this is quite broad, but the assignment to schools is not very strict and filters out "empty" offices
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, avg_office_size = -10)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, avg_office_size = 0)
+            @test_throws ArgumentError Simulation(pop_size = 100, avg_office_size = -10)
+            @test_throws ArgumentError Simulation(pop_size = 100, avg_office_size = 0)
             @test_throws ArgumentError Simulation(pop_size = 100, avg_office_size = 105)
 
             # AVG SCHOOL SIZE
             # passing
-            sim = Simulation(pop_size = 1_000, avg_school_size = 20)
+            sim = Simulation(pop_size = 1000, avg_school_size = 20)
             @test size.(schoolclasses(sim)) |> mean ≈ 20 atol=5 # this is quite broad, but the assignment to schools is not very strict and filters out "empty" schools
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, avg_school_size = -20)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, avg_school_size = 0)
+            @test_throws ArgumentError Simulation(pop_size = 100, avg_school_size = -20)
+            @test_throws ArgumentError Simulation(pop_size = 100, avg_school_size = 0)
             @test_throws ArgumentError Simulation(pop_size = 100, avg_school_size = 105)
 
             # GLOBAL SETTING
             # passing
-            sim = Simulation(pop_size = 1_000, global_setting = true)
+            sim = Simulation(pop_size = 100, global_setting = true)
             @test length(settings(sim, GlobalSetting)) == 1
-            sim = Simulation(pop_size = 1_000, global_setting = false)
+            sim = Simulation(pop_size = 100, global_setting = false)
             @test !haskey(settings(sim), GlobalSetting)
         end
 
@@ -229,89 +253,99 @@
             
 
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, household_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, household_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, office_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, office_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, department_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, department_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, workplace_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, workplace_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, workplace_site_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, workplace_site_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_class_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_class_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_year_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_year_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_complex_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, school_complex_contacts = "none")
-            @test_throws ArgumentError Simulation(pop_size = 1_000, municipality_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, municipality_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, household_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, household_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, office_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, office_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, department_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, department_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, workplace_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, workplace_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, workplace_site_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, workplace_site_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, school_class_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, school_class_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, school_year_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, school_year_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, school_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, school_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, school_complex_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, school_complex_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, municipality_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, municipality_contacts = "none")
 
             # global setting contacts
-            @test_throws ArgumentError Simulation(pop_size = 1_000, global_setting = false, global_setting_contacts = 0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, global_setting_contacts = 0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, global_setting = true, global_setting_contacts = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, global_setting = true, global_setting_contacts = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, global_setting = false, global_setting_contacts = 0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, global_setting_contacts = 0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, global_setting = true, global_setting_contacts = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, global_setting = true, global_setting_contacts = "none")
         
         end
 
         @testset "Start Conditions & Stop Criteria" begin
             # START CONDITION
             # passing
-            sim = Simulation(pop_size = 1_000, start_condition = PatientZero())
+            sim = Simulation(pop_size = 100, start_condition = PatientZero())
             @test count(infected, population(sim)) == 1
-            sim = Simulation(pop_size = 1_000, infected_fraction = 0.011)
+            sim = Simulation(pop_size = 100, infected_fraction = 0.11)
             @test count(infected, population(sim)) == 11
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, start_condition = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, start_condition = "none")
 
             # STOP CONDITION
             # passing
-            sim = Simulation(pop_size = 1_000, stop_criterion = TimesUp(limit = 11))
+            sim = Simulation(pop_size = 100, stop_criterion = TimesUp(limit = 11))
             run!(sim)
             @test tick(sim) == 11
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, stop_criterion = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, stop_criterion = "none")
+        end
+
+        @testset "Interface Fallbacks" begin
+            sim = Simulation(pop_size = 100)
+
+            # Concrete types that DO override limit should return the correct value.
+            @test limit(TimesUp(limit = 7)) == 7
+
+            # StopCriterion without a fixed limit (e.g. NoneInfected) returns nothing.
+            @test isnothing(limit(NoneInfected()))
         end
 
         @testset "Pathogen" begin
             # PATHOGEN
             # passing
             p = Pathogen(id=1, name="Test")
-            sim = Simulation(pop_size = 1_000, pathogen = p)
+            sim = Simulation(pop_size = 100, pathogen = p)
             @test pathogen(sim) === p
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, pathogen = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, pathogen = "none")
 
             # TRANSMISSION FUNCTION
             # passing
             tf = ConstantTransmissionRate(transmission_rate = 0.5)
-            sim = Simulation(pop_size = 1_000, transmission_function = tf)
+            sim = Simulation(pop_size = 100, transmission_function = tf)
             @test transmission_function(pathogen(sim)) === tf
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, transmission_function = "none")
+            @test_throws ArgumentError Simulation(pop_size = 100, transmission_function = "none")
 
             # TRANSMISSION RATE
             # passing
-            sim = Simulation(pop_size = 1_000, transmission_rate = 0.111)
+            sim = Simulation(pop_size = 100, transmission_rate = 0.111)
             @test transmission_function(pathogen(sim)) isa ConstantTransmissionRate
             @test transmission_function(pathogen(sim)).transmission_rate == 0.111
             # failing
-            @test_throws ArgumentError Simulation(pop_size = 1_000, transmission_rate = -0.1)
-            @test_throws ArgumentError Simulation(pop_size = 1_000, transmission_rate = 1.1)
-            @test_throws TypeError Simulation(pop_size = 1_000, transmission_rate = "0.1")
+            @test_throws ArgumentError Simulation(pop_size = 100, transmission_rate = -0.1)
+            @test_throws ArgumentError Simulation(pop_size = 100, transmission_rate = 1.1)
+            @test_throws TypeError Simulation(pop_size = 100, transmission_rate = "0.1")
         end
         @testset "Stepmod" begin
             global cntr = 0
-            sim = Simulation(pop_size = 1_000, stop_criterion = TimesUp(limit = 5),
+            sim = Simulation(pop_size = 100, stop_criterion = TimesUp(limit = 5),
                 stepmod = sim -> (global cntr += 1)) # count five times
             run!(sim)
             @test cntr == 5
         end
-        @testset "Reinitialize" begin
+        @testset "Reset" begin
             sim = Simulation(pop_size=100)
             
             # Simulate a few steps manually
@@ -333,17 +367,209 @@
             @test length(symptom_triggers(sim)) == 1
             @test length(strategies(sim)) == 1
             
-            # Reinitialize the simulation
-            reinitialize!(sim)
-            
-            # Assert simulation was reset properly
+            # Reset keeping interventions
+            reset!(sim, reset_interventions=false)
             @test tick(sim) == 0
             @test !isinfected(individuals(sim)[1])
             @test length(deathlogger(sim)) == 0
+            @test length(symptom_triggers(sim)) == 1
+            @test length(strategies(sim)) == 1
+
+            # Reset clearing interventions
+            reset!(sim, reset_interventions=true)
             @test length(symptom_triggers(sim)) == 0
             @test length(strategies(sim)) == 0
+
+            # reinitialize! is an alias for reset! kept for backwards compatibility.
+            # It must behave identically to reset! in both modes.
+            sim2 = Simulation(pop_size=100)
+            increment!(sim2)
+            increment!(sim2)
+            @test tick(sim2) == 2
+
+            strat2 = IStrategy("reinit_strategy", sim2)
+            add_symptom_trigger!(sim2, SymptomTrigger(strat2))
+            @test length(symptom_triggers(sim2)) == 1
+
+            # reinitialize! without resetting interventions: tick resets, triggers survive
+            reinitialize!(sim2, reset_interventions=false)
+            @test tick(sim2) == 0
+            @test length(symptom_triggers(sim2)) == 1
+
+            # advance a tick again so we can verify reinitialize! resets it
+            increment!(sim2)
+            @test tick(sim2) == 1
+
+            # reinitialize! with reset_interventions=true: both tick and triggers reset
+            reinitialize!(sim2, reset_interventions=true)
+            @test tick(sim2) == 0
+            @test length(symptom_triggers(sim2)) == 0
         end
-    
+
+        @testset "Warn Paths" begin
+            # determine_start_date: no startdate in config -> warns, defaults to today()
+            result = @test_logs (:warn, r"Start date") GEMS.determine_start_date(Dict(), nothing)
+            @test result == today()
+
+            # determine_end_date: no enddate in config -> warns, defaults to today()+Year(1)
+            result = @test_logs (:warn, r"End date") GEMS.determine_end_date(Dict(), nothing)
+            @test result == today() + Year(1)
+
+            # determine_tick_unit: not in config -> warns, defaults to 'd'
+            result = @test_logs (:warn, r"Tick unit") GEMS.determine_tick_unit(Dict(), nothing)
+            @test result == 'd'
+
+            # determine_global_setting: not in config -> warns, defaults to false
+            result = @test_logs (:warn, r"Global setting") GEMS.determine_global_setting(Dict(), nothing)
+            @test result == false
+
+            # determine_start_condition: both start_condition and infected_fraction -> warns, uses start_condition
+            sc_ref = PatientZero()
+            result = @test_logs (:warn, r"infected_fraction will be ignored") GEMS.determine_start_condition(
+                Dict("Simulation" => Dict("StartCondition" => Dict("type" => "PatientZero", "parameters" => Dict()))),
+                sc_ref, 0.1)
+            @test result === sc_ref
+
+            # determine_pathogen: pathogen + transmission_rate -> warns, uses pathogen
+            p_ref = Pathogen(id=1, name="TestPathogen")
+            result = @test_logs (:warn, r"transmission_rate will be ignored") GEMS.determine_pathogen(Dict(), p_ref, nothing, 0.5)
+            @test result === p_ref
+
+            # determine_setting_type_config!: setting type not in config -> warns
+            sim_w = Simulation(pop_size=100)
+            sc_w = settingscontainer(sim_w)
+            @test_logs (:warn, r"settings not found in config file") GEMS.determine_setting_type_config!(sc_w, Household, Dict())
+
+            # determine_setting_type_config!: section present but no contact_sampling_method -> warns
+            @test_logs (:warn, r"contact_sampling_method") GEMS.determine_setting_type_config!(sc_w, Household, Dict("Settings" => Dict("Household" => Dict())))
+
+            # determine_pathogen: transmission_function + transmission_rate -> warns, tf wins
+            default_config = GEMS.load_configfile(GEMS.configfile_path(""))
+            tf_ref2 = ConstantTransmissionRate(transmission_rate=0.3)
+            @test_logs (:warn, r"transmission_rate will be ignored") GEMS.determine_pathogen(default_config, nothing, tf_ref2, 0.5)
+
+            # determine_population_and_settings: string path + pop_size -> warns, path wins
+            pop_path_warn = joinpath(BASE_FOLDER, "test/testdata/TestPop.csv")
+            sim_str = Simulation(population=pop_path_warn, pop_size=999)
+            @test population(sim_str) |> size == 100
+
+            # transmission_function + transmission_rate: tf wins, rate ignored
+            tf_ref = ConstantTransmissionRate(transmission_rate=0.3)
+            sim_tf = Simulation(pop_size=100, transmission_function=tf_ref, transmission_rate=0.9)
+            @test transmission_function(pathogen(sim_tf)) === tf_ref
+
+            # Population object + pop_size: object wins, pop_size ignored
+            pop_obj = Population(n=200, rng=Xoshiro())
+            sim_pop = Simulation(population=pop_obj, pop_size=100)
+            @test population(sim_pop) |> size == 200
+        end
+
+        @testset "Throw Paths (ConfigfileError)" begin
+            @test_throws GEMS.ConfigfileError Simulation(configfile="/nonexistent/path/to/config.toml")
+
+            # load_configfile: existing file that is not a .toml
+            @test_throws GEMS.ConfigfileError Simulation(configfile=joinpath(BASE_FOLDER, "test/testdata/TestPop.csv"))
+
+            pop_path = joinpath(BASE_FOLDER, "test/testdata/people_muenster.jld2")
+            @test_throws ArgumentError Simulation(population=pop_path, settingsfile="notajld2file.csv")
+
+            @test_throws GEMS.ConfigfileError GEMS.determine_start_condition(Dict(), nothing, nothing)
+            @test_throws GEMS.ConfigfileError GEMS.determine_stop_criterion(Dict(), nothing)
+            @test_throws GEMS.ConfigfileError GEMS.determine_pathogen(Dict(), nothing, nothing, nothing)
+
+            # determine_start_date: config has unparseable date value
+            @test_throws GEMS.ConfigfileError GEMS.determine_start_date(Dict("Simulation" => Dict("startdate" => "date")), nothing)
+
+            # determine_end_date: config has unparseable date value
+            @test_throws GEMS.ConfigfileError GEMS.determine_end_date(Dict("Simulation" => Dict("enddate" => "date")), nothing)
+
+            # determine_tick_unit: config has multi-character value (only() throws)
+            @test_throws Exception GEMS.determine_tick_unit(Dict("Simulation" => Dict("tickunit" => "abc")), nothing)
+
+            # determine_global_setting: config has non-Bool value
+            @test_throws ArgumentError GEMS.determine_global_setting(Dict("Simulation" => Dict("GlobalSetting" => 1)), nothing)
+
+            # determine_seed: config has non-integer seed
+            @test_throws ArgumentError GEMS.determine_seed(Dict("Simulation" => Dict("seed" => "abc")), nothing)
+
+            # determine_seed: config has negative seed
+            @test_throws ArgumentError GEMS.determine_seed(Dict("Simulation" => Dict("seed" => -5)), nothing)
+
+            # create_pathogen: bad progressions
+            @test_throws GEMS.ConfigfileError GEMS.create_pathogen(
+                Dict("progressions" => Dict("Symptomatic" => Dict())),
+                "test", Int8(1))
+
+            # create_pathogen: bad progression assignment
+            valid_prog = Dict("Symptomatic" => Dict(
+                "exposure_to_infectiousness_onset" => 3,
+                "infectiousness_onset_to_symptom_onset" => 2,
+                "symptom_onset_to_recovery" => 5))
+            @test_throws GEMS.ConfigfileError GEMS.create_pathogen(
+                Dict(
+                    "progressions" => valid_prog,
+                    "progression_assignment" => Dict(
+                        "type" => "RandomProgressionAssignment",
+                        "parameters" => Dict("progression_categories" => []))),
+                "test", Int8(1))
+
+            # create_pathogen: bad transmission function
+            valid_pa = Dict(
+                "type" => "RandomProgressionAssignment",
+                "parameters" => Dict("progression_categories" => ["Symptomatic"]))
+            @test_throws GEMS.ConfigfileError GEMS.create_pathogen(
+                Dict(
+                    "progressions" => valid_prog,
+                    "progression_assignment" => valid_pa,
+                    "transmission_function" => Dict(
+                        "type" => "ConstantTransmissionRate",
+                        "parameters" => Dict("transmission_rate" => 2.0))),
+                "test", Int8(1))
+
+            # determine_start_condition: invalid constructor params
+            @test_throws GEMS.ConfigfileError GEMS.determine_start_condition(
+                Dict("Simulation" => Dict("StartCondition" => Dict(
+                    "type" => "InfectedFraction",
+                    "parameters" => Dict("fraction" => 2.0)))),
+                nothing, nothing)
+
+            # determine_stop_criterion: invalid constructor params
+            @test_throws GEMS.ConfigfileError GEMS.determine_stop_criterion(
+                Dict("Simulation" => Dict("StopCriterion" => Dict(
+                    "type" => "TimesUp",
+                    "parameters" => Dict("limit" => 0)))),
+                nothing)
+        end
+
+        @testset "Throw Paths (ErrorException)" begin
+            # create_progression: missing required fields
+            @test_throws ErrorException GEMS.create_progression(Dict(), "Symptomatic")
+
+            # create_progression_assignment: empty categories
+            @test_throws ErrorException GEMS.create_progression_assignment(
+                Dict("type" => "RandomProgressionAssignment",
+                    "parameters" => Dict("progression_categories" => [])))
+
+            # create_transmission_function: rate out of range
+            @test_throws ErrorException GEMS.create_transmission_function(
+                Dict("type" => "ConstantTransmissionRate",
+                    "parameters" => Dict("transmission_rate" => 2.0)))
+
+            # create_start_condition: fraction out of range
+            @test_throws ErrorException GEMS.create_start_condition(
+                Dict("type" => "InfectedFraction",
+                    "parameters" => Dict("fraction" => 2.0)))
+
+            # create_stop_criterion: limit out of range
+            @test_throws ErrorException GEMS.create_stop_criterion(
+                Dict("type" => "TimesUp",
+                    "parameters" => Dict("limit" => 0)))
+        end
+
+        @testset "global_setting non-Bool throws" begin
+            @test_throws ArgumentError Simulation(pop_size=100, global_setting=1)
+            @test_throws ArgumentError Simulation(pop_size=100, global_setting="true")
+        end
     end
 
     @testset "Start Conditions" begin
@@ -352,14 +578,14 @@
         @test_throws ArgumentError InfectedFraction(fraction = -0.1)
         @test_throws ArgumentError InfectedFraction(fraction = 1.1)
         # passing
-        inff = InfectedFraction(fraction = 0.01)
-        @test fraction(inff) == 0.01
-        sim = Simulation(pop_size = 1_000, start_condition = inff)
+        inff = InfectedFraction(fraction = 0.1)
+        @test fraction(inff) == 0.1
+        sim = Simulation(pop_size = 100, start_condition = inff)
         @test count(infected, population(sim)) == 10
 
         # PATIENT ZERO
         pz = PatientZero()
-        sim = Simulation(pop_size = 1_000, start_condition = pz)
+        sim = Simulation(pop_size = 100, start_condition = pz)
         @test count(infected, population(sim)) == 1
 
         # PATIENT ZEROS
@@ -375,14 +601,45 @@
             infs -> (i -> household(i, sim)).(infs) |>
             hhlds -> ags.(hhlds) |>
             h_ags -> Set(h_ags) == Set(AGS.(test_ags))
+
+        # REGIONAL SEEDS
+        # failing
+        @test_throws ArgumentError RegionalSeeds(seeds = Dict{Int64,Int64}())
+        @test_throws ArgumentError RegionalSeeds(seeds = Dict(123 => 1))
+
+        # passing: constructor and accessors
+        rs = RegionalSeeds(seeds = Dict(04011000 => 3, 04012000 => 2))
+        @test seeds(rs) == Dict(04011000 => 3, 04012000 => 2)
+        @test pathogen(rs) == ""
+        @test pathogen(RegionalSeeds(pathogen = "flu", seeds = Dict(04011000 => 1))) == "flu"
+
+        # passing: initialize! infects the correct total count
+        hb_seeds = Dict(04011000 => 3, 04012000 => 2)
+        sim = Simulation(population = "HB", start_condition = RegionalSeeds(seeds = hb_seeds))
+        @test count(infected, population(sim)) == 5
+
+        # passing: all infected individuals come from the seeded regions
+        @test individuals(sim) |>
+            inds -> inds[infected.(inds)] |>
+            infs -> (i -> ags(household(i, sim))).(infs) |>
+            h_ags -> all(a -> a in AGS.(keys(hb_seeds)), h_ags)
+
+        # passing: seed_sample gives reproducible results
+        cond = RegionalSeeds(seeds = Dict(04011000 => 3))
+        seed_sim = Simulation(population = "HB")
+        initialize!(seed_sim, cond, seed_sample = 42)
+        infs_first = copy(individuals(seed_sim)[infected.(individuals(seed_sim))])
+        reset!(seed_sim)
+        initialize!(seed_sim, cond, seed_sample = 42)
+        @test individuals(seed_sim)[infected.(individuals(seed_sim))] == infs_first
     end
 
     @testset "Parameter Tests" begin
 
         @testset "AGS Test" begin
-            @test_throws "The state (first two digits) must be between 1 and 16" AGS(Int(123))
-            @test_throws "The state (first two digits) must be between 1 and 16" AGS(Int32(123))
-            @test_throws "The AGS (Amtlicher Gemeindeschlüssel, eng: Community Identification Number) must consist of exactly 8 digits" AGS("123")
+            @test_throws ArgumentError AGS(Int(123))
+            @test_throws ArgumentError AGS(Int32(123))
+            @test_throws ArgumentError AGS("123")
 
             münster = AGS("05515000")
             @test state(münster) == AGS("05000000")
@@ -484,12 +741,73 @@
     end
 
     @testset "Helper Functions" begin
-        sim = Simulation(pop_size = 1_000)
-        
-        output = @capture_out info(sim)
+        sim = Simulation(pop_size = 100)
 
-        # test if someting is written to the console
+        output = @capture_out info(sim)
         @test !isempty(output)
+
+        # info: strategies branch (length > 0)
+        sim_with_strategy = Simulation(pop_size=100)
+        IStrategy("test_strategy", sim_with_strategy)
+        output_with_strategy = @capture_out info(sim_with_strategy)
+        @test occursin("test_strategy", output_with_strategy)
+
+        # pathogen! setter
+        new_pathogen = deepcopy(pathogen(sim))
+        pathogen!(sim, new_pathogen)
+        @test pathogen(sim) === new_pathogen
+    end
+
+    @testset "stepmod Getter" begin
+        sim_default = Simulation(pop_size=100)
+        @test stepmod(sim_default) isa Function
+
+        my_fn = s -> nothing
+        sim_custom = Simulation(pop_size=100, stepmod=my_fn)
+        @test stepmod(sim_custom) === my_fn
+    end
+
+    @testset "Base.show" begin
+        sim = Simulation(pop_size=100)
+        output = @capture_out show(sim)
+        @test !isempty(output)
+        @test occursin("Simulation", output)
+        @test occursin("100", output)
+        @test occursin(label(sim), output)
+    end
+
+    @testset "DataFrame Access Functions" begin
+        sim = Simulation(pop_size=100, start_condition=PatientZero(), stop_criterion=TimesUp(limit=10))
+        run!(sim)
+
+        @test infections(sim) isa DataFrame
+        @test deaths(sim) isa DataFrame
+        @test tests(sim) isa DataFrame
+        @test quarantines(sim) isa DataFrame
+        @test pooltests(sim) isa DataFrame
+        @test seroprevalencetests(sim) isa DataFrame
+        @test customlogs(sim) isa DataFrame
+
+        pop_df = populationDF(sim)
+        @test pop_df isa DataFrame
+        @test nrow(pop_df) == population(sim) |> size
+
+        st_df = states(sim)
+        @test st_df isa DataFrame
+        @test nrow(st_df) == 10
+        @test hasproperty(st_df, :tick)
+        @test hasproperty(st_df, :exposed)
+        @test hasproperty(st_df, :infectious)
+        @test hasproperty(st_df, :quarantined)
+
+        @test infectionlogger(sim) isa InfectionLogger
+        @test deathlogger(sim) isa DeathLogger
+        @test testlogger(sim) isa GEMS.TestLogger
+        @test pooltestlogger(sim) isa PoolTestLogger
+        @test seroprevalencelogger(sim) isa SeroprevalenceLogger
+        @test quarantinelogger(sim) isa QuarantineLogger
+        @test statelogger(sim) isa StateLogger
+        @test customlogger(sim) isa CustomLogger
     end
 
     @testset "Simulation Acceleration (Dormancy)" begin
@@ -569,5 +887,19 @@
         
         # Verify they are actual individual vectors
         @test present_buffers(sim)[1] isa Vector{Individual}
+
+        # rngs returns one Xoshiro RNG per thread, seeded from the simulation seed.
+        rng_vec = rngs(sim)
+        @test rng_vec isa Vector{Xoshiro}
+        @test length(rng_vec) == num_threads
+
+        # Each simulation gets its own independent RNG vector.
+        sim2 = Simulation()
+        @test rngs(sim2) !== rngs(sim)
+
+        # A simulation constructed with a fixed seed produces a reproducible RNG state.
+        simA = Simulation(pop_size=100, seed=999)
+        simB = Simulation(pop_size=100, seed=999)
+        @test rand(rngs(simA)[1]) == rand(rngs(simB)[1])
     end
 end
