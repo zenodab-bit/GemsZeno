@@ -66,5 +66,5 @@ function GEMS.sample_contacts!(
     end
 end
 
-## End of script
-println("END CONTACT SAMPLING")
+## END
+println("\nEND CUSTOM CONTACTS 2")

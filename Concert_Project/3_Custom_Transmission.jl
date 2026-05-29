@@ -50,5 +50,6 @@ function GEMS.transmission_probability(
     end
 end
 
-## End of script
-println("END CUSTOM TRANSMISSION")
+
+## END
+println("\nEND CUSTOM TRANSMISSION 3")

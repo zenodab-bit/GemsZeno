@@ -236,5 +236,5 @@ JLD2.@save "Concert_Project/Datastorage/people_Saalekreis_concert.jld2" data
 # Reload the saved data to verify it was written correctly
 newpeople = JLD2.load("Concert_Project/Datastorage/people_Saalekreis_concert.jld2")["data"]
 
-## End of script
-println("END CUSTOM POPULATION")
+## END
+println("\nEND CUSTOM POPULATION 1")

@@ -46,3 +46,8 @@ function concert_infectious(sim)
     end
     return total_infectious, infectious_concertgoers, total_susceptible, susceptible_concertgoers
 end
+
+
+
+## END
+println("\nEND CUSTOM LOGGER & RESULT DATA 4")
