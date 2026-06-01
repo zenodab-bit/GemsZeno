@@ -23,7 +23,7 @@ const age_groups_percentage = [
 const age_groups = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
 
 # --- Contact Settings ---
-const mean_number_of_contacts_sitting = 5
+const mean_number_of_contacts_sitting  = 5
 const mean_number_of_contacts_standing = 0
 
 
@@ -34,11 +34,6 @@ include("1_Custom_Population.jl")
 include("2_Custom_Contacts.jl")
 include("3_Custom_Transmission.jl")
 include("4_Custom_Logger_ResultData.jl")
-
-
-
-
-
 
 
 
@@ -58,6 +53,10 @@ customlogger!(sim_concert, cl)
 run!(sim_concert)
 
 rd_concert = ResultData(sim_concert; style = "ConcertRD")
+
+sitting_rate  = sim_concert.pathogen.transmission_function.sitting_rate
+standing_rate = sim_concert.pathogen.transmission_function.standing_rate
+general_rate  = sim_concert.pathogen.transmission_function.general_rate
 
 
 
@@ -92,17 +91,13 @@ println("Total infected in population: ", rd_concert.data["sim_data"]["total_inf
 
 ## === Metrics 2, 3: From custom logger ===
 cl_data           = sim_concert.customlogger.data
-infectious_in_pop  = 0
-susceptible_in_pop = 0
+infectious_in_pop = 0
 for row in eachrow(cl_data)
     if row.tick == concert_date
         stats = row.concert_day_stats
-        println("Tick $(row.tick) - Infectious in population:      ", stats[1])
-        println("Tick $(row.tick) - Infectious concert-goers:      ", stats[2])
-        println("Tick $(row.tick) - Susceptible in population:     ", stats[3])
-        println("Tick $(row.tick) - Susceptible concert-goers:     ", stats[4])
-        infectious_in_pop  = stats[1]
-        susceptible_in_pop = stats[3]
+        println("Tick $(row.tick) - Infectious in population:  ", stats[1])
+        println("Tick $(row.tick) - Infectious concert-goers:  ", stats[2])
+        infectious_in_pop = stats[1]
         break
     end
 end
@@ -128,60 +123,55 @@ inf_logger      = dataframe(infectionlogger(sim_concert))
 population_size = nrow(people)
 
 # build all sets from infection logger in a single pass
-not_susceptible_ids      = Set{Int32}()
-currently_infected_ids   = Set{Int32}()
-currently_infectious_ids = Set{Int32}()
-recovered_ids            = Set{Int32}()
-dead_ids                 = Set{Int32}()
-concert_infected_ids     = Set{Int32}()
-same_day_other_ids       = Set{Int32}()
-global_cases_count       = 0
+infected_before_concert_ids = Set{Int32}()
+currently_infectious_ids    = Set{Int32}()
+exposed_before_concert_ids  = Set{Int32}()
+recovered_ids               = Set{Int32}()
+dead_ids                    = Set{Int32}()
+same_day_other_ids          = Set{Int32}()
+concert_infected_ids        = Set{Int32}()
+global_cases_count          = 0
 
 for row in eachrow(inf_logger)
     if row.tick < concert_date
-        push!(not_susceptible_ids, row.id_b)
-        if row.recovery > concert_date || row.recovery == -1
-            push!(currently_infected_ids, row.id_b)
-            if row.infectiousness_onset <= concert_date
-                push!(currently_infectious_ids, row.id_b)
-            end
-        end
-        if row.recovery != -1 && row.recovery <= concert_date
+        push!(infected_before_concert_ids, row.id_b)
+        if row.infectiousness_onset <= concert_date && (row.recovery > concert_date || row.recovery == -1) && (row.death > concert_date || row.death == -1)
+            push!(currently_infectious_ids, row.id_b)
+        elseif row.recovery != -1 && row.recovery <= concert_date
             push!(recovered_ids, row.id_b)
-        end
-        if row.death != -1 && row.death < concert_date
+        elseif row.death != -1 && row.death <= concert_date
             push!(dead_ids, row.id_b)
+        else
+            push!(exposed_before_concert_ids, row.id_b)
         end
     elseif row.tick == concert_date
         if row.setting_type != 'g'
-            push!(not_susceptible_ids, row.id_b)
-            push!(same_day_other_ids, row.id_b) 
-        end
-        if row.setting_type == 'g'
+            push!(same_day_other_ids, row.id_b)
+        else
             push!(concert_infected_ids, row.id_b)
             global_cases_count += 1
         end
     end
 end
 
-exposed_not_infectious_ids = setdiff(currently_infected_ids, currently_infectious_ids)
-susceptible_ids            = setdiff(concertgoer_ids, not_susceptible_ids)
-
-susceptible_cg = length(intersect(susceptible_ids, concertgoer_ids))
-infectious_cg  = length(intersect(currently_infectious_ids, concertgoer_ids))
-exposed_cg     = length(intersect(exposed_not_infectious_ids, concertgoer_ids))
-recovered_cg   = length(intersect(recovered_ids, concertgoer_ids))
-dead_cg        = length(intersect(dead_ids, concertgoer_ids))
-same_day_other_cg = length(intersect(same_day_other_ids, concertgoer_ids))
+not_susceptible_ids = union(infected_before_concert_ids, same_day_other_ids)
+susceptible_ids     = setdiff(concertgoer_ids, not_susceptible_ids)
+susceptible_cg      = length(susceptible_ids)
+exposed_before_cg   = length(intersect(exposed_before_concert_ids, concertgoer_ids))
+same_day_cg         = length(intersect(same_day_other_ids, concertgoer_ids))
+infectious_cg       = length(intersect(currently_infectious_ids, concertgoer_ids))
+recovered_cg        = length(intersect(recovered_ids, concertgoer_ids))
+dead_cg             = length(intersect(dead_ids, concertgoer_ids))
 
 println("\n=== Before concert (tick ", concert_date, ") ===")
-println("Susceptible:                      ", susceptible_cg)
-println("Exposed not infectious:           ", exposed_cg)
+println("Susceptible at concert:           ", susceptible_cg)
+println("Exposed before concert day:       ", exposed_before_cg)
+println("Exposed same day before concert:  ", same_day_cg)
 println("Infectious:                       ", infectious_cg)
 println("Recovered/immune:                 ", recovered_cg)
-println("Infected same day other settings: ", same_day_other_cg)
 println("Dead:                             ", dead_cg)
-println("Total:                            ", susceptible_cg + exposed_cg + infectious_cg + recovered_cg + same_day_other_cg + dead_cg)
+println("Total:                            ", susceptible_cg + exposed_before_cg + same_day_cg + infectious_cg + recovered_cg + dead_cg)
+
 
 
 
@@ -200,13 +190,6 @@ println("Infection rate among susceptible: ", round(susceptible_infected_at_conc
 ## === Expected vs Observed by Age Group ===
 age_order = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
 
-# build age group lookup for all individuals in one pass
-id_to_age = Dict{Int32, String}()
-for i in sim_concert.population.individuals
-    id_to_age[i.id] = age_group_label(i.age)
-end
-
-# count population size, infectious and susceptible per age group
 pop_size_by_age        = Dict(age => 0 for age in age_order)
 pop_infectious_by_age  = Dict(age => 0 for age in age_order)
 pop_susceptible_by_age = Dict(age => 0 for age in age_order)
@@ -236,7 +219,6 @@ for i in sim_concert.population.individuals
     end
 end
 
-# calculate expected infectious and susceptible from population rates
 expected_infectious_total  = 0.0
 expected_susceptible_total = 0.0
 var_infectious_total       = 0.0
@@ -292,21 +274,25 @@ println(rpad("Total", 10), " | ",
 println("\nInfectious  - Std: $(round(std_infectious,  digits=1))  Z-score: $(round(z_infectious,  digits=2))")
 println("Susceptible - Std: $(round(std_susceptible, digits=1))  Z-score: $(round(z_susceptible, digits=2))")
 
-## === Expected infections at concert ===
-## === Expected infections at concert ===
-p_infectious_contact        = infectious_cg / (event_size_total - 1)
-p_not_infected              = (1 - p_infectious_contact) ^ mean_number_of_contacts_sitting
-p_infected                  = 1 - p_not_infected
+
+
+
+## === Expected vs Observed infections at concert ===
+exponent                    = infectious_cg * mean_number_of_contacts_sitting * sitting_rate / (event_size_total - 1)
+p_infected                  = 1 - exp(-exponent)
+p_not_infected              = exp(-exponent)
 expected_concert_infections = susceptible_cg * p_infected
-std_concert_infections      = sqrt(susceptible_cg * p_infected * (1 - p_infected))
+std_concert_infections      = sqrt(susceptible_cg * p_infected * p_not_infected)
 z_concert_infections        = (global_cases_count - expected_concert_infections) / std_concert_infections
 
 println("\n=== Expected vs Observed infections at concert ===")
-println("P(infectious contact):   ", round(p_infectious_contact, digits=4))
-println("P(getting infected):     ", round(p_infected, digits=4))
-println("Expected infections:     ", round(expected_concert_infections, digits=1))
-println("Observed infections:     ", global_cases_count)
-println("Std:                     ", round(std_concert_infections, digits=1))
-println("Z-score:                 ", round(z_concert_infections, digits=2))
+println("Expected infections: ", round(expected_concert_infections, digits=1))
+println("Observed infections: ", global_cases_count)
+println("Std:                 ", round(std_concert_infections, digits=1))
+println("Z-score:             ", round(z_concert_infections, digits=2))
+
+
+
+
 ## END
 println("\nEND SIMULATION 5 SINGLE SIMULATION")
