@@ -14,7 +14,7 @@
     [Simulation.StopCriterion]
         type = "TimesUp"
         [Simulation.StopCriterion.parameters]
-            limit = 30
+            limit = 365
 
 
 [Pathogens]
@@ -24,7 +24,7 @@
             type = "SettingRate"
             [Pathogens.Covid19.transmission_function.parameters]
                 general_rate = 0.2
-                sitting_rate = 1
+                sitting_rate = 0
                 standing_rate = 0
 
         [Pathogens.Covid19.progressions]
@@ -176,74 +176,74 @@
                 type = "ContactparameterSampling"
 
                 [Settings.Household.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 2.4
 
     [Settings.Office]
         [Settings.Office.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.Office.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 2.4
                     
     [Settings.School]
         [Settings.School.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.School.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 0
 
     [Settings.SchoolClass]
         [Settings.SchoolClass.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.SchoolClass.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 2.4
 
     [Settings.Municipality]
         [Settings.Municipality.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.Municipality.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 0
 
     [Settings.WorkplaceSite]
         [Settings.WorkplaceSite.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.WorkplaceSite.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 0
 
     [Settings.SchoolComplex]
         [Settings.SchoolComplex.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.SchoolComplex.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 0
 
     [Settings.SchoolYear]
         [Settings.SchoolYear.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.SchoolYear.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 0
 
     [Settings.Department]
         [Settings.Department.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.Department.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 0
 
     [Settings.Workplace]
         [Settings.Workplace.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.Workplace.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 0
                     
     [Settings.GlobalSetting]
         [Settings.GlobalSetting.contact_sampling_method]
                 type = "ConcertContacts"
                 
                 [Settings.GlobalSetting.contact_sampling_method.parameters]
-                    contactparameter = 1.0
+                    contactparameter = 1.00
