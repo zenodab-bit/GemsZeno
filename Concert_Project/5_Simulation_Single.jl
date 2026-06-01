@@ -3,9 +3,9 @@
 const concert_date = 15
 const event_size_total = 1000
 const concert_groups_percentage = [1, 0]
-const concert_groups_number = [0, 0]
+const concert_groups_number = [583, 576]
 const concert_attendance_levels = [1, 2]
-const concert_groups_number_true = false
+const concert_groups_number_true = true
 
 # --- Demographic Settings ---
 const sex_groups_percentage = [0.5, 0.5]
@@ -23,8 +23,8 @@ const age_groups_percentage = [
 const age_groups = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
 
 # --- Contact Settings ---
-const mean_number_of_contacts_sitting  = 5
-const mean_number_of_contacts_standing = 0
+const mean_number_of_contacts_sitting  = 4
+const mean_number_of_contacts_standing = 12
 
 
 
@@ -57,13 +57,14 @@ rd_concert = ResultData(sim_concert; style = "ConcertRD")
 sitting_rate  = sim_concert.pathogen.transmission_function.sitting_rate
 standing_rate = sim_concert.pathogen.transmission_function.standing_rate
 general_rate  = sim_concert.pathogen.transmission_function.general_rate
+population_size = nrow(people)
 
 
 
 
 ## === Plot: All Settings ===
 gp = gemsplot(rd_concert)
-png(gp, "Concert_Project/Plots/General_validation_1.png")
+png(gp, "Concert_Project/Plots/General_base.png")
 
 
 
@@ -78,41 +79,35 @@ for row in eachrow(tick_cases_concert)
 end
 rd_concert.data["dataframes"]["tick_cases_per_setting"] = DataFrame(tick_cases_filtered)
 gp1 = gemsplot(rd_concert, type = :TickCasesBySetting)
-png(gp1, "Concert_Project/Plots/Cases_by_setting_validation_1.png")
+png(gp1, "Concert_Project/Plots/Cases_by_setting_base.png")
 
 
 
 
 ## === Metric 1: Total infected in population ===
 println("Total infected in population: ", rd_concert.data["sim_data"]["total_infections"])
+## === Metric 1: Total infected in population ===
+println("Total infected in population: ", rd_concert.data["sim_data"]["total_infections"])
+println("Attack rate:                  ", round(rd_concert.data["sim_data"]["attack_rate"] * 100, digits=2), "%")
+println("R0:                           ", round(rd_concert.data["sim_data"]["r0"], digits=2))
 
 
 
-
-## === Metrics 2, 3: From custom logger ===
+## === Metrics 2, 3: Infectious from custom logger ===
 cl_data           = sim_concert.customlogger.data
 infectious_in_pop = 0
 for row in eachrow(cl_data)
     if row.tick == concert_date
         stats = row.concert_day_stats
-        println("Tick $(row.tick) - Infectious in population:  ", stats[1])
-        println("Tick $(row.tick) - Infectious concert-goers:  ", stats[2])
+        println("Tick $(row.tick) - Infectious in population:           ", stats[1])
+        println("Tick $(row.tick) - Infectious concert-goers:           ", stats[2])
         infectious_in_pop = stats[1]
         break
     end
 end
 
-
-
-
-## === Metric 4: Infected AT the concert ===
-total_global_infected = 0
-for row in eachrow(tick_cases_concert)
-    if row.setting_type == 'g'
-        total_global_infected += row.daily_cases
-    end
-end
-println("People infected at the concert: ", total_global_infected)
+expected_infectious_cg_simple = (infectious_in_pop / population_size) * event_size_total
+println("Expected infectious concert-goers (simple): ", round(expected_infectious_cg_simple, digits=1))
 
 
 
@@ -120,7 +115,7 @@ println("People infected at the concert: ", total_global_infected)
 ## === Concert Population Analysis ===
 concertgoer_ids = Set(i.id for i in sim_concert.population.individuals if i.occupation == 1 || i.occupation == 2)
 inf_logger      = dataframe(infectionlogger(sim_concert))
-population_size = nrow(people)
+
 
 # build all sets from infection logger in a single pass
 infected_before_concert_ids = Set{Int32}()
@@ -273,6 +268,9 @@ println(rpad("Total", 10), " | ",
         susceptible_cg)
 println("\nInfectious  - Std: $(round(std_infectious,  digits=1))  Z-score: $(round(z_infectious,  digits=2))")
 println("Susceptible - Std: $(round(std_susceptible, digits=1))  Z-score: $(round(z_susceptible, digits=2))")
+println("Expected infectious (simple estimate): $(round(expected_infectious_cg_simple, digits=1))")
+println("Expected infectious (age-adjusted):    $(round(expected_infectious_total, digits=1))")
+println("Observed infectious:                   $(infectious_cg)")
 
 
 
