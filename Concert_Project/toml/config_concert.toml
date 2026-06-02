@@ -23,7 +23,7 @@
         [Pathogens.Covid19.transmission_function]
             type = "SettingRate"
             [Pathogens.Covid19.transmission_function.parameters]
-                general_rate = 0.2
+                general_rate = 0.23
                 sitting_rate = 0
                 standing_rate = 0
 
@@ -176,14 +176,14 @@
                 type = "ContactparameterSampling"
 
                 [Settings.Household.contact_sampling_method.parameters]
-                    contactparameter = 2.4
+                    contactparameter = 2
 
     [Settings.Office]
         [Settings.Office.contact_sampling_method]
                 type = "ContactparameterSampling"
 
                 [Settings.Office.contact_sampling_method.parameters]
-                    contactparameter = 2.4
+                    contactparameter = 2
                     
     [Settings.School]
         [Settings.School.contact_sampling_method]
@@ -197,7 +197,7 @@
                 type = "ContactparameterSampling"
 
                 [Settings.SchoolClass.contact_sampling_method.parameters]
-                    contactparameter = 2.4
+                    contactparameter = 2
 
     [Settings.Municipality]
         [Settings.Municipality.contact_sampling_method]
