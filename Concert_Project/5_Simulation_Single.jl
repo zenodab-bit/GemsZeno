@@ -1,6 +1,6 @@
 ## === Global Configuration ===
 # --- Concert Settings ---
-const concert_date = 15
+const concert_date = 35
 const event_size_total = 1000
 const concert_groups_percentage = [1, 0]
 const concert_groups_number = [583, 576]
@@ -29,6 +29,20 @@ const mean_number_of_contacts_standing = 12
 
 
 
+## === Derived Constants ===
+const actual_event_size = concert_groups_number_true ? sum(concert_groups_number) : event_size_total
+
+
+
+
+
+
+## === Plot Label ===
+concert_label = concert_groups_number_true && sum(concert_groups_number) == 0 ? "no_concert" : "concert_day_$(concert_date)"
+
+
+
+
 ## === Include Custom Modules ===
 include("1_Custom_Population.jl")
 include("2_Custom_Contacts.jl")
@@ -40,7 +54,7 @@ include("4_Custom_Logger_ResultData.jl")
 
 ## === Run Simulation ===
 sim_concert = Simulation(
-    configfile = "Concert_Project/toml/config_concert.toml",
+    configfile = "Concert_Project/toml/config_concert_covid.toml",
     population = "Concert_Project/Datastorage/people_Saalekreis_concert.jld2",
     settingsfile = "Concert_Project/Datastorage/settings_Saalekreis.jld2",
     global_setting_contacts = ConcertContacts(),
@@ -57,14 +71,14 @@ rd_concert = ResultData(sim_concert; style = "ConcertRD")
 sitting_rate  = sim_concert.pathogen.transmission_function.sitting_rate
 standing_rate = sim_concert.pathogen.transmission_function.standing_rate
 general_rate  = sim_concert.pathogen.transmission_function.general_rate
-population_size = nrow(people)
+pop_size      = nrow(people)
 
 
 
 
 ## === Plot: All Settings ===
 gp = gemsplot(rd_concert)
-png(gp, "Concert_Project/Plots/General_base.png")
+png(gp,  "Concert_Project/Plots/General_$(concert_label).png")
 
 
 
@@ -73,23 +87,22 @@ png(gp, "Concert_Project/Plots/General_base.png")
 tick_cases_concert = rd_concert.data["dataframes"]["tick_cases_per_setting"]
 tick_cases_filtered = Vector{DataFrameRow}()
 for row in eachrow(tick_cases_concert)
-    if row.setting_type in ['h', 's', 'w', 'g']
+    if row.setting_type in ['h', 'c', 'o', 'g', 'm']
         push!(tick_cases_filtered, row)
     end
 end
 rd_concert.data["dataframes"]["tick_cases_per_setting"] = DataFrame(tick_cases_filtered)
 gp1 = gemsplot(rd_concert, type = :TickCasesBySetting)
-png(gp1, "Concert_Project/Plots/Cases_by_setting_base.png")
+png(gp1, "Concert_Project/Plots/Cases_by_setting_$(concert_label).png")
 
 
 
 
-## === Metric 1: Total infected in population ===
-println("Total infected in population: ", rd_concert.data["sim_data"]["total_infections"])
 ## === Metric 1: Total infected in population ===
 println("Total infected in population: ", rd_concert.data["sim_data"]["total_infections"])
 println("Attack rate:                  ", round(rd_concert.data["sim_data"]["attack_rate"] * 100, digits=2), "%")
 println("R0:                           ", round(rd_concert.data["sim_data"]["r0"], digits=2))
+
 
 
 
@@ -106,7 +119,7 @@ for row in eachrow(cl_data)
     end
 end
 
-expected_infectious_cg_simple = (infectious_in_pop / population_size) * event_size_total
+expected_infectious_cg_simple = (infectious_in_pop / pop_size) * actual_event_size
 println("Expected infectious concert-goers (simple): ", round(expected_infectious_cg_simple, digits=1))
 
 
@@ -115,7 +128,6 @@ println("Expected infectious concert-goers (simple): ", round(expected_infectiou
 ## === Concert Population Analysis ===
 concertgoer_ids = Set(i.id for i in sim_concert.population.individuals if i.occupation == 1 || i.occupation == 2)
 inf_logger      = dataframe(infectionlogger(sim_concert))
-
 
 # build all sets from infection logger in a single pass
 infected_before_concert_ids = Set{Int32}()
@@ -261,7 +273,7 @@ println("-"^80)
 println(rpad("Total", 10), " | ",
         rpad("", 8), " | ",
         rpad("", 8), " | ",
-        rpad(event_size_total, 7), " | ",
+        rpad(actual_event_size, 7), " | ",
         rpad(round(expected_infectious_total,  digits=1), 7), " | ",
         rpad(infectious_cg, 7), " | ",
         rpad(round(expected_susceptible_total, digits=1), 7), " | ",
@@ -276,7 +288,7 @@ println("Observed infectious:                   $(infectious_cg)")
 
 
 ## === Expected vs Observed infections at concert ===
-exponent                    = infectious_cg * mean_number_of_contacts_sitting * sitting_rate / (event_size_total - 1)
+exponent                    = infectious_cg * mean_number_of_contacts_sitting * sitting_rate / (actual_event_size - 1)
 p_infected                  = 1 - exp(-exponent)
 p_not_infected              = exp(-exponent)
 expected_concert_infections = susceptible_cg * p_infected

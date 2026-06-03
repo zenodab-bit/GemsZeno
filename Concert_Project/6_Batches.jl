@@ -1,11 +1,11 @@
 ## === Global Configuration ===
 # --- Concert Settings ---
-const concert_date = 15
-const event_size_total = 1000
+const concert_date = 25
+const event_size_total = 0
 const concert_groups_percentage = [1, 0]
-const concert_groups_number = [0, 0]
+const concert_groups_number = [583, 576]
 const concert_attendance_levels = [1, 2]
-const concert_groups_number_true = false
+const concert_groups_number_true = true
 
 # --- Demographic Settings ---
 const sex_groups_percentage = [0.5, 0.5]
@@ -23,11 +23,25 @@ const age_groups_percentage = [
 const age_groups = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
 
 # --- Contact Settings ---
-const mean_number_of_contacts_sitting = 1
-const mean_number_of_contacts_standing = 0
+const mean_number_of_contacts_sitting  = 4
+const mean_number_of_contacts_standing = 12
 
 # --- Batch Settings ---
 const n_simulations = 10
+
+
+
+
+## === Derived Constants ===
+const actual_event_size = concert_groups_number_true ? sum(concert_groups_number) : event_size_total
+
+
+
+
+
+
+## === Plot Label ===
+concert_label = concert_groups_number_true && sum(concert_groups_number) == 0 ? "no_concert" : "concert_day_$(concert_date)"
 
 
 
@@ -43,19 +57,20 @@ include("4_Custom_Logger_ResultData.jl")
 
 ## === Storage Vectors ===
 # scalar metrics
-total_infected_v           = Float64[]
-infectious_population_v    = Float64[]
-infectious_concertgoers_v  = Float64[]
-susceptible_population_v   = Float64[]
-susceptible_concertgoers_v = Float64[]
-infected_at_concert_v      = Float64[]
-susceptible_before_v       = Float64[]
-exposed_before_v           = Float64[]
-infectious_before_v        = Float64[]
-recovered_before_v         = Float64[]
-same_day_other_v           = Float64[]
-dead_before_v              = Float64[]
-infection_rate_v           = Float64[]
+total_infected_v             = Float64[]
+attack_rate_v                = Float64[]
+r0_v                         = Float64[]
+infectious_population_v      = Float64[]
+infectious_concertgoers_v    = Float64[]
+expected_infectious_simple_v = Float64[]
+infected_at_concert_v        = Float64[]
+susceptible_before_v         = Float64[]
+exposed_before_v             = Float64[]
+same_day_other_v             = Float64[]
+infectious_before_v          = Float64[]
+recovered_before_v           = Float64[]
+dead_before_v                = Float64[]
+infection_rate_v             = Float64[]
 
 # expected vs observed infections at concert
 expected_concert_infections_v = Float64[]
@@ -97,7 +112,7 @@ for i in 1:n_simulations
     println("\n=== Running simulation $i of $n_simulations ===")
 
     sim = Simulation(
-        configfile   = "Concert_Project/toml/config_concert.toml",
+        configfile   = "Concert_Project/toml/config_concert_covid.toml",
         population   = "Concert_Project/Datastorage/people_Saalekreis_concert.jld2",
         settingsfile = "Concert_Project/Datastorage/settings_Saalekreis.jld2",
         global_setting_contacts = ConcertContacts(),
@@ -110,68 +125,69 @@ for i in 1:n_simulations
 
     rd = ResultData(sim; style = "ConcertRD")
 
-    # --- Metric 1: total infected ---
-    push!(total_infected_v, rd.data["sim_data"]["total_infections"])
+    sitting_rate = sim.pathogen.transmission_function.sitting_rate
+    pop_size     = nrow(people)
 
-    # --- Metrics 2-4: from custom logger ---
-    cl_data = sim.customlogger.data
+    # --- Metric 1: total infected, attack rate, R0 ---
+    push!(total_infected_v, rd.data["sim_data"]["total_infections"])
+    push!(attack_rate_v,    rd.data["sim_data"]["attack_rate"] * 100)
+    push!(r0_v,             rd.data["sim_data"]["r0"])
+
+    # --- Metrics 2, 3: from custom logger ---
+    cl_data           = sim.customlogger.data
+    infectious_in_pop = 0
     for row in eachrow(cl_data)
         if row.tick == concert_date
             stats = row.concert_day_stats
-            push!(infectious_population_v,    stats[1])
-            push!(infectious_concertgoers_v,  stats[2])
-            push!(susceptible_population_v,   stats[3])
-            push!(susceptible_concertgoers_v, stats[4])
+            push!(infectious_population_v,   stats[1])
+            push!(infectious_concertgoers_v, stats[2])
+            infectious_in_pop = stats[1]
             break
         end
     end
+    push!(expected_infectious_simple_v, (infectious_in_pop / pop_size) * actual_event_size)
 
     # --- Concert population analysis ---
     concertgoer_ids = Set(j.id for j in sim.population.individuals if j.occupation == 1 || j.occupation == 2)
     inf_logger      = dataframe(infectionlogger(sim))
 
-    not_susceptible_ids      = Set{Int32}()
-    currently_infected_ids   = Set{Int32}()
-    currently_infectious_ids = Set{Int32}()
-    recovered_ids            = Set{Int32}()
-    dead_ids                 = Set{Int32}()
-    concert_infected_ids     = Set{Int32}()
-    same_day_other_ids       = Set{Int32}()
-    global_cases_count       = 0
+    infected_before_concert_ids = Set{Int32}()
+    currently_infectious_ids    = Set{Int32}()
+    exposed_before_concert_ids  = Set{Int32}()
+    recovered_ids               = Set{Int32}()
+    dead_ids                    = Set{Int32}()
+    same_day_other_ids          = Set{Int32}()
+    concert_infected_ids        = Set{Int32}()
+    global_cases_count          = 0
 
     for row in eachrow(inf_logger)
         if row.tick < concert_date
-            push!(not_susceptible_ids, row.id_b)
-            if row.recovery > concert_date || row.recovery == -1
-                push!(currently_infected_ids, row.id_b)
-                if row.infectiousness_onset <= concert_date
-                    push!(currently_infectious_ids, row.id_b)
-                end
-            end
-            if row.recovery != -1 && row.recovery <= concert_date
+            push!(infected_before_concert_ids, row.id_b)
+            if row.infectiousness_onset <= concert_date && (row.recovery > concert_date || row.recovery == -1) && (row.death > concert_date || row.death == -1)
+                push!(currently_infectious_ids, row.id_b)
+            elseif row.recovery != -1 && row.recovery <= concert_date
                 push!(recovered_ids, row.id_b)
-            end
-            if row.death != -1 && row.death < concert_date
+            elseif row.death != -1 && row.death <= concert_date
                 push!(dead_ids, row.id_b)
+            else
+                push!(exposed_before_concert_ids, row.id_b)
             end
         elseif row.tick == concert_date
             if row.setting_type != 'g'
-                push!(not_susceptible_ids, row.id_b)
                 push!(same_day_other_ids, row.id_b)
-            end
-            if row.setting_type == 'g'
+            else
                 push!(concert_infected_ids, row.id_b)
                 global_cases_count += 1
             end
         end
     end
 
-    exposed_not_infectious_ids = setdiff(currently_infected_ids, currently_infectious_ids)
-    susceptible_ids            = setdiff(concertgoer_ids, not_susceptible_ids)
+    not_susceptible_ids = union(infected_before_concert_ids, same_day_other_ids)
+    susceptible_ids     = setdiff(concertgoer_ids, not_susceptible_ids)
 
-    s_cg        = length(intersect(susceptible_ids, concertgoer_ids))
+    s_cg        = length(susceptible_ids)
     inf_cg      = length(intersect(currently_infectious_ids, concertgoer_ids))
-    exp_cg      = length(intersect(exposed_not_infectious_ids, concertgoer_ids))
+    exp_cg      = length(intersect(exposed_before_concert_ids, concertgoer_ids))
     rec_cg      = length(intersect(recovered_ids, concertgoer_ids))
     dead_cg     = length(intersect(dead_ids, concertgoer_ids))
     same_day_cg = length(intersect(same_day_other_ids, concertgoer_ids))
@@ -229,8 +245,8 @@ for i in 1:n_simulations
     end
 
     # --- Expected vs observed infections at concert ---
-    p_infectious_contact        = inf_cg / (event_size_total - 1)
-    p_infected                  = 1 - (1 - p_infectious_contact) ^ mean_number_of_contacts_sitting
+    exponent                    = inf_cg * mean_number_of_contacts_sitting * sitting_rate / (actual_event_size - 1)
+    p_infected                  = 1 - exp(-exponent)
     expected_concert_infections = s_cg * p_infected
     push!(expected_concert_infections_v, expected_concert_infections)
     push!(observed_concert_infections_v, global_cases_count)
@@ -253,11 +269,12 @@ for i in 1:n_simulations
     push!(all_effectiveR_outhh,   Float64.(eff_df[!, "rolling_out_hh_R"]))
 
     tick_cases_concert = rd.data["dataframes"]["tick_cases_per_setting"]
-    for setting in ['h', 's', 'w', 'g']
-        setting_rows = Float64[]
+    n_ticks = rd.data["sim_data"]["final_tick"]
+    for setting in ['h', 'c', 'o', 'g', 'm']
+        setting_rows = zeros(Float64, n_ticks)
         for row in eachrow(tick_cases_concert)
             if row.setting_type == setting
-                push!(setting_rows, Float64(row.daily_cases))
+                setting_rows[row.tick] = Float64(row.daily_cases)
             end
         end
         if !haskey(all_tick_cases, setting)
@@ -272,66 +289,94 @@ end
 
 ## === Summary Statistics ===
 function summary_stats(v)
-    return (mean = mean(v), std = std(v))
+    return (
+        mean   = mean(v),
+        std    = std(v),
+        cv     = std(v) / mean(v) * 100,
+        min    = minimum(v),
+        p25    = quantile(v, 0.25),
+        median = median(v),
+        p75    = quantile(v, 0.75),
+        p90    = quantile(v, 0.90),
+        p95    = quantile(v, 0.95),
+        max    = maximum(v)
+    )
 end
 
 println("\n=== Summary Statistics ===")
 
 s = summary_stats(total_infected_v)
 println("\nTotal infected in population:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
+
+s = summary_stats(attack_rate_v)
+println("\nAttack rate:")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
+
+s = summary_stats(r0_v)
+println("\nR0:")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 s = summary_stats(infectious_population_v)
 println("\nInfectious in population on concert day:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 s = summary_stats(infectious_concertgoers_v)
 println("\nInfectious concert-goers on concert day:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
-s = summary_stats(susceptible_population_v)
-println("\nSusceptible in population on concert day:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
-
-s = summary_stats(susceptible_concertgoers_v)
-println("\nSusceptible concert-goers on concert day:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+s = summary_stats(expected_infectious_simple_v)
+println("\nExpected infectious concert-goers (simple):")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 s = summary_stats(infected_at_concert_v)
 println("\nPeople infected at the concert:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 println("\n=== Before Concert ===")
 
 s = summary_stats(susceptible_before_v)
-println("\nSusceptible:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("\nSusceptible at concert:")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 s = summary_stats(exposed_before_v)
-println("\nExposed not infectious:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("\nExposed before concert day:")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
+
+s = summary_stats(same_day_other_v)
+println("\nExposed same day before concert:")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 s = summary_stats(infectious_before_v)
 println("\nInfectious:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 s = summary_stats(recovered_before_v)
 println("\nRecovered/immune:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
-
-s = summary_stats(same_day_other_v)
-println("\nInfected same day other settings:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 s = summary_stats(dead_before_v)
 println("\nDead:")
-println("  Mean: $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))")
-
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 println("\n=== After Concert ===")
 
 s = summary_stats(infection_rate_v)
 println("\nInfection rate among susceptible:")
-println("  Mean: $(round(s.mean, digits=1))%  Std: $(round(s.std, digits=1))%")
+println("  Mean:   $(round(s.mean, digits=1))  Std: $(round(s.std, digits=1))  CV: $(round(s.cv, digits=1))%")
+println("  Min:    $(round(s.min, digits=1))  P25: $(round(s.p25, digits=1))  Median: $(round(s.median, digits=1))  P75: $(round(s.p75, digits=1))  P90: $(round(s.p90, digits=1))  P95: $(round(s.p95, digits=1))  Max: $(round(s.max, digits=1))")
 
 
 
@@ -405,6 +450,9 @@ println(rpad("Total", 10), " | ",
         "$(round(total_obs_sus_mean, digits=1))±$(round(total_obs_sus_std, digits=1))")
 println("\nInfectious  - Z-score: $(round(z_infectious,  digits=2))")
 println("Susceptible - Z-score: $(round(z_susceptible, digits=2))")
+println("Expected infectious (simple estimate): $(round(mean(expected_infectious_simple_v), digits=1)) ± $(round(std(expected_infectious_simple_v), digits=1))")
+println("Expected infectious (age-adjusted):    $(round(total_exp_inf_mean, digits=1)) ± $(round(total_exp_inf_std, digits=1))")
+println("Observed infectious:                   $(round(total_obs_inf_mean, digits=1)) ± $(round(total_obs_inf_std, digits=1))")
 
 
 
@@ -445,6 +493,7 @@ end
 
 
 ## === Plot 1: General (Tick Cases, Cumulative Cases, Effective R) ===
+using StatsPlots
 p1 = plot(title = "Cases per Day", xlabel = "Day", ylabel = "Individuals", dpi = 300)
 shaded_series!(p1,
     [all_tick_cases_general_exposed, all_tick_cases_general_infectious, all_tick_cases_general_recovered, all_tick_cases_general_dead],
@@ -472,16 +521,16 @@ gp = plot(p1, p2, p3,
     size          = (600, 800),
     titlefontsize = 10
 )
-png(gp, "Concert_Project/Plots/Batch_general.png")
+png(gp,  "Concert_Project/Plots/Batch_general_$(concert_label).png")
 
 
 
 
 ## === Plot 2: Cases by Setting ===
-setting_colors = Dict('h' => :orange, 's' => :green, 'w' => :purple, 'g' => :blue)
-setting_labels = Dict('h' => "Household", 's' => "School", 'w' => "Workplace", 'g' => "GlobalSetting")
+setting_colors = Dict('h' => :orange, 'c' => :red, 'o' => :purple, 'g' => :blue, 'm' => :brown)
+setting_labels = Dict('h' => "Household", 'c' => "SchoolClass", 'o' => "Office", 'g' => "GlobalSetting", 'm' => "Municipality")
 gp2 = plot(title = "Infections per Day by Setting", xlabel = "Day", ylabel = "Individuals", dpi = 300)
-for setting in ['h', 's', 'w', 'g']
+for setting in ['h', 'c', 'o', 'g', 'm']
     if haskey(all_tick_cases, setting) && !isempty(all_tick_cases[setting])
         mat = hcat(all_tick_cases[setting]...)
         avg = mean(mat, dims=2)[:]
@@ -496,10 +545,21 @@ for setting in ['h', 's', 'w', 'g']
         )
     end
 end
-png(gp2, "Concert_Project/Plots/Batch_cases_by_setting.png")
+png(gp2, "Concert_Project/Plots/Batch__setting_$(concert_label).png")
 
 
 
-
+## === Plot 3: Boxplot infected at concert ===
+gp3 = boxplot(
+    ["Infected at concert"],
+    [infected_at_concert_v],
+    title     = "Distribution of Infections at Concert",
+    ylabel    = "Number of Infections",
+    legend    = false,
+    dpi       = 300,
+    color     = :blue,
+    fillalpha = 0.5
+)
+png(gp3, "Concert_Project/Plots/Batch_concert_boxplot_$(concert_label).png")
 ## END
 println("\nEND SIMULATION 6 BATCHES")

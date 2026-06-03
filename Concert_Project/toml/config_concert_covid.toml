@@ -24,8 +24,8 @@
             type = "SettingRate"
             [Pathogens.Covid19.transmission_function.parameters]
                 general_rate = 0.3
-                sitting_rate = 1
-                standing_rate = 1
+                sitting_rate = 0
+                standing_rate = 0
 
         [Pathogens.Covid19.progressions]
 
