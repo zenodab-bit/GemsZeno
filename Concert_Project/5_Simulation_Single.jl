@@ -35,8 +35,6 @@ const actual_event_size = concert_groups_number_true ? sum(concert_groups_number
 
 
 
-
-
 ## === Plot Label ===
 concert_label = concert_groups_number_true && sum(concert_groups_number) == 0 ? "no_concert" : "concert_day_$(concert_date)"
 
@@ -78,7 +76,7 @@ pop_size      = nrow(people)
 
 ## === Plot: All Settings ===
 gp = gemsplot(rd_concert)
-png(gp,  "Concert_Project/Plots/General_$(concert_label).png")
+png(gp, "Concert_Project/Plots/S_epidemic_curves_$(concert_label).png")
 
 
 
@@ -93,7 +91,7 @@ for row in eachrow(tick_cases_concert)
 end
 rd_concert.data["dataframes"]["tick_cases_per_setting"] = DataFrame(tick_cases_filtered)
 gp1 = gemsplot(rd_concert, type = :TickCasesBySetting)
-png(gp1, "Concert_Project/Plots/Cases_by_setting_$(concert_label).png")
+png(gp1, "Concert_Project/Plots/S_setting_infections_$(concert_label).png")
 
 
 
@@ -129,7 +127,6 @@ println("Expected infectious concert-goers (simple): ", round(expected_infectiou
 concertgoer_ids = Set(i.id for i in sim_concert.population.individuals if i.occupation == 1 || i.occupation == 2)
 inf_logger      = dataframe(infectionlogger(sim_concert))
 
-# build all sets from infection logger in a single pass
 infected_before_concert_ids = Set{Int32}()
 currently_infectious_ids    = Set{Int32}()
 exposed_before_concert_ids  = Set{Int32}()

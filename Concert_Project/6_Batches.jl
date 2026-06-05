@@ -38,8 +38,6 @@ const actual_event_size = concert_groups_number_true ? sum(concert_groups_number
 
 
 
-
-
 ## === Plot Label ===
 concert_label = concert_groups_number_true && sum(concert_groups_number) == 0 ? "no_concert" : "concert_day_$(concert_date)"
 
@@ -521,7 +519,7 @@ gp = plot(p1, p2, p3,
     size          = (600, 800),
     titlefontsize = 10
 )
-png(gp,  "Concert_Project/Plots/Batch_general_$(concert_label).png")
+png(gp, "Concert_Project/Plots/BOS_epidemic_curves_$(concert_label).png")
 
 
 
@@ -545,7 +543,8 @@ for setting in ['h', 'c', 'o', 'g', 'm']
         )
     end
 end
-png(gp2, "Concert_Project/Plots/Batch__setting_$(concert_label).png")
+png(gp2, "Concert_Project/Plots/BOS_setting_infections_$(concert_label).png")
+
 
 
 
@@ -560,6 +559,7 @@ gp3 = boxplot(
     color     = :blue,
     fillalpha = 0.5
 )
-png(gp3, "Concert_Project/Plots/Batch_concert_boxplot_$(concert_label).png")
+png(gp3, "Concert_Project/Plots/BOS_infections_at_concert_boxplot_$(concert_label).png")
+
 ## END
 println("\nEND SIMULATION 6 BATCHES")

@@ -30,7 +30,7 @@ const mean_number_of_contacts_standing = 12
 
 # --- Batch of Batches Settings ---
 const n_simulations      = 100
-const concert_days_range = 1:100
+const concert_days_range = 0:5:100
 
 
 
@@ -168,11 +168,11 @@ png(gp, "Concert_Project/Plots/Batch_of_batches_boxplot.png")
 
 
 
-## === Plot: Boxplot of infected at concert by day ===
+## === Plot: Violin of infected at concert by day ===
 days = collect(concert_days_range)
 data = [infected_distributions[day] for day in days]
 
-gp = boxplot(
+gp1 = violin(
     repeat(days, inner = n_simulations),
     vcat(data...),
     title     = "Distribution of Infections at Concert by Day",
@@ -184,7 +184,7 @@ gp = boxplot(
     fillalpha = 0.5,
     linewidth = 1
 )
-png(gp, "Concert_Project/Plots/Batch_of_batches_boxplot.png")
+png(gp1, "Concert_Project/Plots/Batch_of_batches_violin.png")
 
 
 
@@ -208,6 +208,41 @@ png(gp2, "Concert_Project/Plots/Batch_of_batches_mean.png")
 
 
 
+
+# Open a file to write the formatted table
+open("Concert_Project/Results/batch_of_batches_summary.txt", "w") do f
+    # Write the header
+    println(f, "\n=== Summary by Concert Day ===")
+    println(f, rpad("Day", 5), " | ",
+            rpad("Mean", 8), " | ",
+            rpad("Std", 8), " | ",
+            rpad("CV%", 8), " | ",
+            rpad("Min", 6), " | ",
+            rpad("P25", 6), " | ",
+            rpad("Median", 8), " | ",
+            rpad("P75", 6), " | ",
+            rpad("P90", 6), " | ",
+            rpad("P95", 6), " | ",
+            "Max")
+
+    println(f, "-"^95)
+
+    # Write the data rows
+    for day in concert_days_range
+        s = summary_by_day[day]
+        println(f, rpad(day, 5), " | ",
+                rpad(round(s.mean, digits=1), 8), " | ",
+                rpad(round(s.std, digits=1), 8), " | ",
+                rpad(round(s.cv, digits=1), 8), " | ",
+                rpad(round(s.min, digits=1), 6), " | ",
+                rpad(round(s.p25, digits=1), 6), " | ",
+                rpad(round(s.median, digits=1), 8), " | ",
+                rpad(round(s.p75, digits=1), 6), " | ",
+                rpad(round(s.p90, digits=1), 6), " | ",
+                rpad(round(s.p95, digits=1), 6), " | ",
+                round(s.max, digits=1))
+    end
+end
 
 ## END
 println("\nEND SIMULATION 7 BATCH OF BATCHES")
