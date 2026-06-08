@@ -29,8 +29,8 @@ const mean_number_of_contacts_sitting  = 4
 const mean_number_of_contacts_standing = 12
 
 # --- Batch of Batches Settings ---
-const n_simulations      = 100
-const concert_days_range = 0:5:100
+const n_simulations      = 2
+const concert_days_range = 0:50:100
 
 
 

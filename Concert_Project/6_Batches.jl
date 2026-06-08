@@ -27,7 +27,7 @@ const mean_number_of_contacts_sitting  = 4
 const mean_number_of_contacts_standing = 12
 
 # --- Batch Settings ---
-const n_simulations = 10
+const n_simulations = 3
 
 
 
