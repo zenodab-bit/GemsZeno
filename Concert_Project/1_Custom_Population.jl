@@ -37,17 +37,18 @@ function age_group_label(age)
     end
 end
 
-# Apply the age classification to the population dataset
-people.age_group = age_group_label.(people.age)
+ge_groups = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
 
-# Define the canonical order of age groups for sorting and categorical conversion
 age_order = [
     "<18", "18-25", "26-30", "31-35", "36-40",
     "41-45", "46-50", "50+"
 ]
 
+# Apply the age classification to the population dataset
+people.age_group = age_group_label.(people.age)
+
+
 # Convert the age_group column to an ordered categorical variable
-# This ensures proper sorting and comparison in analyses
 people.age_group = categorical(
     people.age_group;
     ordered = true,
@@ -62,7 +63,7 @@ people.age_group = categorical(
 # Function to distribute participants into groups with minimal rounding errors
 # This ensures the total number of participants matches the input while preserving percentages
 function nice_split(total, groups_percentage_temp)
-    # Calculate the raw (floating-point) number of individuals per group
+    # Calculate the raw number of individuals per group
     groups_vector_raw = total * groups_percentage_temp
 
     # Round up the total to ensure all individuals are accounted for
@@ -74,13 +75,14 @@ function nice_split(total, groups_percentage_temp)
     # Calculate the remaining individuals due to flooring
     remainder = total_from_raw - sum(groups_vector)
 
-    # Extract the decimal parts to prioritize rounding adjustments
+    # Extract the decimal parts remaining
     decimals = groups_vector_raw .- groups_vector
 
-    # Sort indices by decimal part (largest first) to distribute the remainder fairly
+    # Sort indices by decimal part, from largest to smallest
     idx = sortperm(vec(decimals), rev = true)
 
-    # Add one individual to the groups with the largest decimal parts
+    # For each individual remaining (remainder) add them to a group, starting from the group
+        # with the highest remainder
     for i in 1:Int(remainder)
         idx_3D = CartesianIndices(decimals)[idx[i]]
         groups_vector[idx_3D] += 1
@@ -185,7 +187,7 @@ assign_concert!(
 # Count the number of people in each attendance category
 countmap(people.occupation)
 
-# Example: Count the number of people in a specific subgroup
+# Count the number of people in a specific subgroup
 sum((people.age_group .== "31-35") .& (people.sex .== 2) .& (people.occupation .== 1))
 
 # Extract and analyze the sitting subgroup
