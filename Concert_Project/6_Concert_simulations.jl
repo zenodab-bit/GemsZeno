@@ -1,7 +1,7 @@
 ## === Global Configuration ===
 concert_date        = 1
-concert_days_range  = 40:5:40
-n_simulations       = 1
+concert_days_range  = 120:5:120
+n_simulations       = 100
 
 event_size_total          = 1000
 concert_groups_percentage = [1, 0]
@@ -14,8 +14,8 @@ sex_levels            = [1, 2]
 age_groups_percentage = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125]
 age_groups            = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
 
-mean_number_of_contacts_sitting  = 4
-mean_number_of_contacts_standing = 12
+mean_number_of_contacts_sitting  = 0
+mean_number_of_contacts_standing = 0
 
 # --- Derived ---
 actual_event_size = concert_groups_number_true ? sum(concert_groups_number) : event_size_total
@@ -38,7 +38,6 @@ results_by_day = Dict{Int,Any}()
 
 
 
-
 ## === Simulation Loop ===
 for day in concert_days_range
     global concert_date = day
@@ -46,6 +45,7 @@ for day in concert_days_range
 
     # --- Per-day storage (reset each day) ---
     results_vector = Vector{NamedTuple}()
+    chain_vector = Vector{NamedTuple}()
 
     # general epidemic curves
     all_tick_cases_general_exposed = Vector{Vector{Float64}}()
@@ -127,6 +127,8 @@ for day in concert_days_range
             actual_event_size
         )
         push!(results_vector, result)
+        chain_result = analyze_transmission_chains(sim, concert_date)
+        push!(chain_vector, chain_result)
 
         # --- Per-tick general data ---
         tick_cases_sim = rd.data["dataframes"]["tick_cases"]
@@ -168,8 +170,10 @@ for day in concert_days_range
     # --- Pack everything for this day ---
     results_by_day[day] = (
         # aggregated concert population metrics
-        concert=aggregate_concert_results(results_vector),
+        concert = aggregate_concert_results(results_vector),
+        chain = aggregate_chain_results(chain_vector),
         concert_raw = results_vector,
+        chain_raw = chain_vector,
 
         # epidemic curve time series
         timeseries=Dict(
@@ -207,3 +211,4 @@ for day in concert_days_range
 end
 
 println("\nSimulation complete — run Concert_Analysis.jl to generate metrics and plots.")
+include("7_Concert_analysis.jl")

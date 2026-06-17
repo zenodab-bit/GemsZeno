@@ -99,36 +99,120 @@ end
 
 
 function aggregate_concert_results(results_vector)
-    aggregated = Dict{Symbol, NamedTuple}()
-    
+    aggregated = Dict{Symbol,NamedTuple}()
+
     if length(results_vector) == 1
         r = results_vector[1]
         for field in keys(r)
             v = getfield(r, field)
             aggregated[field] = (
-                mean   = Float64(v),
-                std    = 0.0,
-                min    = Float64(v),
-                p25    = Float64(v),
-                median = Float64(v),
-                p75    = Float64(v),
-                max    = Float64(v)
+                mean=Float64(v),
+                std=0.0,
+                min=Float64(v),
+                p25=Float64(v),
+                median=Float64(v),
+                p75=Float64(v),
+                max=Float64(v)
             )
         end
     else
         for field in keys(results_vector[1])
             values = [getfield(r, field) for r in results_vector]
             aggregated[field] = (
-                mean   = mean(values),
-                std    = std(values),
-                min    = minimum(values),
-                p25    = quantile(values, 0.25),
-                median = median(values),
-                p75    = quantile(values, 0.75),
-                max    = maximum(values)
+                mean=mean(values),
+                std=std(values),
+                min=minimum(values),
+                p25=quantile(values, 0.25),
+                median=median(values),
+                p75=quantile(values, 0.75),
+                max=maximum(values)
             )
         end
     end
-    
     return aggregated
+end
+
+
+
+## Chain of infections ##
+function infected_by(inf_logger, source_ids)
+    return Set(row.id_b for row in eachrow(inf_logger) if row.id_a in source_ids)
+end
+
+function transmission_chain(inf_logger, seed_ids)
+    generations = Vector{Set{Int32}}()
+    current_gen = seed_ids
+    while !isempty(current_gen)
+        next_gen = infected_by(inf_logger, current_gen)
+        next_gen = setdiff(next_gen, reduce(union, generations, init=Set{Int32}()))
+        isempty(next_gen) && break
+        push!(generations, next_gen)
+        current_gen = next_gen
+    end
+    return generations
+end
+
+function aggregate_chain_results(chain_vector)
+    scalar_fields = [:total_downstream_sitting, :total_downstream_standing,
+        :n_generations_sitting, :n_generations_standing]
+
+    aggregated = Dict{Symbol,NamedTuple}()
+    for field in scalar_fields
+        values = Float64[getfield(r, field) for r in chain_vector]
+        aggregated[field] = (
+            mean=mean(values),
+            std=length(values) > 1 ? std(values) : 0.0,
+            min=minimum(values),
+            p25=quantile(values, 0.25),
+            median=median(values),
+            p75=quantile(values, 0.75),
+            max=maximum(values)
+        )
+    end
+
+    # per-generation matrices stored separately
+    max_gen_sit = maximum(length(r.downstream_sitting) for r in chain_vector)
+    max_gen_sta = maximum(length(r.downstream_standing) for r in chain_vector)
+
+    gen_sit_matrix = hcat([vcat(r.downstream_sitting, zeros(Int, max_gen_sit - length(r.downstream_sitting))) for r in chain_vector]...)
+    gen_sta_matrix = hcat([vcat(r.downstream_standing, zeros(Int, max_gen_sta - length(r.downstream_standing))) for r in chain_vector]...)
+
+    return (
+        aggregated=aggregated,
+        gen_sitting=gen_sit_matrix,
+        gen_standing=gen_sta_matrix
+    )
+end
+
+function analyze_transmission_chains(sim, concert_date)
+    inf_logger = dataframe(infectionlogger(sim))
+
+    # build occupation sets
+    sitting_ids = Set(i.id for i in sim.population.individuals if i.occupation == 1)
+    standing_ids = Set(i.id for i in sim.population.individuals if i.occupation == 2)
+
+    # find everyone infected at the concert
+    concert_infected_ids = Set{Int32}()
+    for row in eachrow(inf_logger)
+        if row.tick == concert_date && row.setting_type == 'g'
+            push!(concert_infected_ids, row.id_b)
+        end
+    end
+
+    # split by occupation
+    concert_infected_sitting = intersect(concert_infected_ids, sitting_ids)
+    concert_infected_standing = intersect(concert_infected_ids, standing_ids)
+
+    # trace full transmission chains
+    chain_sitting = transmission_chain(inf_logger, concert_infected_sitting)
+    chain_standing = transmission_chain(inf_logger, concert_infected_standing)
+
+    return (
+        downstream_sitting=length.(chain_sitting),
+        downstream_standing=length.(chain_standing),
+        total_downstream_sitting=isempty(chain_sitting) ? 0 : sum(length.(chain_sitting)),
+        total_downstream_standing=isempty(chain_standing) ? 0 : sum(length.(chain_standing)),
+        n_generations_sitting=length(chain_sitting),
+        n_generations_standing=length(chain_standing)
+    )
 end
