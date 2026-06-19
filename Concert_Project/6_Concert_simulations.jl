@@ -1,7 +1,7 @@
 ## === Global Configuration ===
 concert_date        = 1
-concert_days_range  = 120:5:120
-n_simulations       = 100
+concert_days_range  = 80:20:80
+n_simulations       = 2
 
 event_size_total          = 1000
 concert_groups_percentage = [1, 0]
@@ -9,13 +9,13 @@ concert_groups_number     = [583, 576]
 concert_attendance_levels = [1, 2]
 concert_groups_number_true = true
 
-sex_groups_percentage = [0.5, 0.5]
+sex_groups_percentage = [[0.420,0.580],[0.395,0.605],[0.426,0.574]]
 sex_levels            = [1, 2]
-age_groups_percentage = [0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125]
-age_groups            = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
+age_groups_percentage = [0.211, 0.347, 0.442]
+age_groups            = ["<=45", "46-64", ">=65"]
 
-mean_number_of_contacts_sitting  = 0
-mean_number_of_contacts_standing = 0
+mean_number_of_contacts_sitting  = 4
+mean_number_of_contacts_standing = 12
 
 # --- Derived ---
 actual_event_size = concert_groups_number_true ? sum(concert_groups_number) : event_size_total

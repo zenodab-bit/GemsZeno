@@ -18,30 +18,19 @@ data_settings = JLD2.load("Concert_Project/Datastorage/settings_Saalekreis.jld2"
 
 # Function to classify individuals into age groups based on their age
 function age_group_label(age)
-    if age < 18
-        "<18"
-    elseif age <= 24
-        "18-25"
-    elseif age <= 29
-        "26-30"
-    elseif age <= 34
-        "31-35"
-    elseif age <= 39
-        "36-40"
-    elseif age <= 44
-        "41-45"
-    elseif age <= 49
-        "46-50"
-    else
-        "50+"
+    if age < 46
+        "<=45"
+    elseif age <= 64
+        "46-64"
+    else 
+        ">=65"
     end
 end
 
-ge_groups = ["<18", "18-25", "26-30", "31-35", "36-40", "41-45", "46-50", "50+"]
+ge_groups = ["<=45", "46-64", ">=65"]
 
 age_order = [
-    "<18", "18-25", "26-30", "31-35", "36-40",
-    "41-45", "46-50", "50+"
+    "<=45", "46-64", ">=65"
 ]
 
 # Apply the age classification to the population dataset
@@ -100,21 +89,19 @@ else
 end
 
 # Initialize a 3D matrix to store the percentage of participants per subgroup
-# Dimensions: (concert group, age group, sex group)
-groups_percentage = zeros(Float64, length(concert_groups), length(age_groups_percentage), length(sex_groups_percentage))
-
+# Dimensions: (concert group, age group, 2)
 # Populate the matrix with the percentage of participants for each subgroup combination
+groups_percentage = zeros(Float64, length(concert_groups), length(age_groups_percentage), 2)
 for loc in eachindex(concert_groups)
-    for i in eachindex(age_groups_percentage)
-        for j in eachindex(sex_groups_percentage)
-            # Calculate the percentage for this subgroup
-            groups_percentage[loc, i, j] = concert_groups[loc] * age_groups_percentage[i] * sex_groups_percentage[j]
-        end
+    for age in eachindex(age_groups_percentage)
+        groups_percentage[loc, age, 1] = concert_groups[loc] * age_groups_percentage[age] * sex_groups_percentage[age][1]
+        groups_percentage[loc, age, 2] = concert_groups[loc] * age_groups_percentage[age] * sex_groups_percentage[age][2]
     end
-end
+end    
+
 
 # Initialize a 3D matrix to store the integer counts of participants per subgroup
-groups_total = zeros(Int, length(concert_groups), length(age_groups_percentage), length(sex_groups_percentage))
+groups_total = zeros(Int, length(concert_groups), length(age_groups_percentage), 2)
 
 # Assign participants to subgroups using either predefined numbers or percentages
 if concert_groups_number_true

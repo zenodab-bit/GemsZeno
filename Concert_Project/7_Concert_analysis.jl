@@ -19,7 +19,7 @@ end
 function summary_stats(v)
     (
         mean=mean(v),
-        std=length(v) > 1 ? std(v) : 0.0,
+        std=length(v) > 1 ? std(v) : 0.00,
         min=minimum(v),
         p25=quantile(v, 0.25),
         median=median(v),
@@ -170,7 +170,7 @@ function plot_day(day)
         [:blue, :red, :green, :black],
         ["Exposed", "Infectious", "Recovered", "Dead"]
     )
-    
+
 
 
     p2 = plot(title="Cumulative Cases — Day $day", xlabel="Tick", ylabel="Count")
@@ -187,7 +187,7 @@ function plot_day(day)
         ["Overall", "In Household", "Out Household"]
     )
 
-    p_overview = plot(p1, p2, p3, layout=(3,1), size=(800, 900), dpi=300)
+    p_overview = plot(p1, p2, p3, layout=(3, 1), size=(800, 900), dpi=300)
     savefig(p_overview, "Concert_Project/Plots/epidemic_overview_day$(day).png")
 
 
@@ -232,21 +232,21 @@ function plot_infected_boxplot()
     sta_values = Float64[]
     for day in concert_days_range
         raw = results_by_day[day].concert_raw
-        append!(sit_values, [r.infected_sitting  for r in raw])
+        append!(sit_values, [r.infected_sitting for r in raw])
         append!(sta_values, [r.infected_standing for r in raw])
         append!(groups, fill(day, length(raw)))
     end
 
-    p1 = boxplot(groups, sit_values,
+    p6 = boxplot(groups, sit_values,
         title="Infected at Concert (Sitting)", xlabel="Concert Day", ylabel="Infected",
         legend=false, dpi=300, color=:blue)
 
-    p2 = boxplot(groups, sta_values,
+    p7 = boxplot(groups, sta_values,
         title="Infected at Concert (Standing)", xlabel="Concert Day", ylabel="Infected",
         legend=false, dpi=300, color=:red)
 
-    p = plot(p1, p2, layout=(2,1), size=(800, 800), dpi=300)
-    savefig(p, "Concert_Project/Plots/infected_at_concert_boxplot.png")
+    p8 = plot(p6, p7, layout=(2, 1), size=(800, 800), dpi=300)
+    savefig(p8, "Concert_Project/Plots/infected_at_concert_boxplot_$(day_str).png")
 end
 
 ## === BOB Plots ===
@@ -254,67 +254,70 @@ end
 function plot_concert_impact_by_day()
     days_vec = collect(concert_days_range)
 
-    # --- p1: mean infected at concert ---
-    means_sit = Float64[]; stds_sit = Float64[]
-    means_sta = Float64[]; stds_sta = Float64[]
-    for day in days_vec
-        m_sit = results_by_day[day].concert[:infected_sitting]
-        m_sta = results_by_day[day].concert[:infected_standing]
-        push!(means_sit, m_sit.mean); push!(stds_sit, m_sit.std)
-        push!(means_sta, m_sta.mean); push!(stds_sta, m_sta.std)
-    end
-    p1 = plot(days_vec, means_sit, ribbon=stds_sit,
-        title="Mean Infected at Concert by Day",
-        xlabel="Concert Day", ylabel="Infected",
-        label="Sitting", color=:blue, fillalpha=0.3, linewidth=2)
-    plot!(p1, days_vec, means_sta, ribbon=stds_sta,
-        label="Standing", color=:red, fillalpha=0.3, linewidth=2)
+    sit_gen1 = Float64[]; sit_gen1_std = Float64[]
+    sit_total = Float64[]; sit_total_std = Float64[]
+    sta_gen1 = Float64[]; sta_gen1_std = Float64[]
+    sta_total = Float64[]; sta_total_std = Float64[]
 
-    # --- p2: downstream infections ---
-    sit_gen1 = Float64[]; sit_total = Float64[]
-    sta_gen1 = Float64[]; sta_total = Float64[]
     for day in days_vec
-        push!(sit_gen1,  mean(results_by_day[day].chain.gen_sitting[1, :]))
-        push!(sta_gen1,  mean(results_by_day[day].chain.gen_standing[1, :]))
-        push!(sit_total, results_by_day[day].chain.aggregated[:total_downstream_sitting].mean)
-        push!(sta_total, results_by_day[day].chain.aggregated[:total_downstream_standing].mean)
+        gen_sit = results_by_day[day].chain.gen_sitting
+        gen_sta = results_by_day[day].chain.gen_standing
+
+        push!(sit_gen1,     size(gen_sit, 1) >= 1 ? mean(gen_sit[1, :]) : 0.0)
+        push!(sit_gen1_std, size(gen_sit, 1) >= 1 ? std(gen_sit[1, :])  : 0.0)
+        push!(sta_gen1,     size(gen_sta, 1) >= 1 ? mean(gen_sta[1, :]) : 0.0)
+        push!(sta_gen1_std, size(gen_sta, 1) >= 1 ? std(gen_sta[1, :])  : 0.0)
+
+        push!(sit_total,     results_by_day[day].chain.aggregated[:total_downstream_sitting].mean)
+        push!(sit_total_std, results_by_day[day].chain.aggregated[:total_downstream_sitting].std)
+        push!(sta_total,     results_by_day[day].chain.aggregated[:total_downstream_standing].mean)
+        push!(sta_total_std, results_by_day[day].chain.aggregated[:total_downstream_standing].std)
     end
-    p2 = plot(title="Downstream Infections by Concert Day",
-        xlabel="Concert Day", ylabel="Infections")
-    plot!(p2, days_vec, sit_gen1,  label="Sitting gen 1",  color=:blue, linewidth=2)
-    plot!(p2, days_vec, sit_total, label="Sitting total",  color=:blue, linewidth=2, linestyle=:dash)
-    plot!(p2, days_vec, sta_gen1,  label="Standing gen 1", color=:red,  linewidth=2)
-    plot!(p2, days_vec, sta_total, label="Standing total", color=:red,  linewidth=2, linestyle=:dash)
+
+    # --- p9: sitting ---
+    p9 = plot(title="Downstream Infections — Sitting", xlabel="Concert Day", ylabel="Infections")
+    plot!(p9, days_vec, sit_gen1, ribbon=sit_gen1_std,
+        label="Gen 1", color=:blue, linewidth=2, fillalpha=0.2)
+    plot!(p9, days_vec, sit_total, ribbon=sit_total_std,
+        label="Total", color=:blue, linewidth=2, linestyle=:dash, fillalpha=0.2)
+
+    # --- p10: standing ---
+    p10 = plot(title="Downstream Infections — Standing", xlabel="Concert Day", ylabel="Infections")
+    plot!(p10, days_vec, sta_gen1, ribbon=sta_gen1_std,
+        label="Gen 1", color=:red, linewidth=2, fillalpha=0.2)
+    plot!(p10, days_vec, sta_total, ribbon=sta_total_std,
+        label="Total", color=:red, linewidth=2, linestyle=:dash, fillalpha=0.2)
 
     # --- combine ---
-    p_overview = plot(p1, p2, layout=(2,1), size=(800, 800), dpi=300)
-    savefig(p_overview, "Concert_Project/Plots/concert_impact_by_day.png")
+    p_overview = plot(p9, p10, layout=(2, 1), size=(800, 800), dpi=300)
+    savefig(p_overview, "Concert_Project/Plots/downstream_infections_by_day.png")
+
 end
-    
+
 
 function plot_heatmap_cumulative_infections()
     heatmap_matrix = nothing
-for day in concert_days_range
-    avg, _, _ = ribbon_data(results_by_day[day].timeseries["cumulative_infections"])
-    if heatmap_matrix === nothing
-        heatmap_matrix = avg'  # first row, transpose to make it a row vector
-    else
-        heatmap_matrix = vcat(heatmap_matrix, avg')  # stack rows
+    for day in concert_days_range
+        avg, _, _ = ribbon_data(results_by_day[day].timeseries["cumulative_infections"])
+        if heatmap_matrix === nothing
+            heatmap_matrix = avg'  # first row, transpose to make it a row vector
+        else
+            heatmap_matrix = vcat(heatmap_matrix, avg')  # stack rows
+        end
     end
-end
 
-days_vec = collect(concert_days_range)
-n_ticks  = size(heatmap_matrix, 2)
+    days_vec = collect(concert_days_range)
+    n_ticks = size(heatmap_matrix, 2)
 
-p = heatmap(1:n_ticks, days_vec, heatmap_matrix ./ 1000,
-    title  = "Mean Cumulative Infections by Concert Day",
-    xlabel = "Tick",
-    ylabel = "Concert Day",
-    colorbar_title = "Infections (thousands)",
-    color  = :viridis,
-    dpi    = 300,
-    yticks = (days_vec, string.(days_vec)))
-savefig(p, "Concert_Project/Plots/heatmap_cumulative_infections.png")
+    p = heatmap(1:n_ticks, days_vec, heatmap_matrix ./ 1000,
+        title="Mean Cumulative Infections by Concert Day",
+        xlabel="Day",
+        ylabel="Day of the Concert",
+        colorbar_title="Infections (thousands)",
+        color=:viridis,
+        dpi=300,
+        yticks=(days_vec, string.(days_vec)))
+    savefig(p, "Concert_Project/Plots/heatmap_cumulative_infections_$(day_str).png")
 
 end
 
