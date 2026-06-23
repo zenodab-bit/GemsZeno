@@ -6,10 +6,10 @@ using GEMS, Parameters, DataFrames, TOML, Plots, FileIO,
     StatsBase
 
 # Load the preprocessed population dataset
-people = JLD2.load("Concert_Project/Datastorage/people_Saalekreis.jld2")["data"]
+people = JLD2.load(joinpath(@__DIR__, "Datastorage", "people_Saalekreis.jld2"))["data"]
 
 # Load the settings dataset containing configurations for various locations
-data_settings = JLD2.load("Concert_Project/Datastorage/settings_Saalekreis.jld2")["data"]
+data_settings = JLD2.load(joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"))["data"]
 
 
 
@@ -17,31 +17,27 @@ data_settings = JLD2.load("Concert_Project/Datastorage/settings_Saalekreis.jld2"
 ## === Define Age Groups ===
 
 # Function to classify individuals into age groups based on their age
-function age_group_label(age)
-    if age < 46
-        "<=45"
-    elseif age <= 64
-        "46-64"
-    else 
-        ">=65"
+function age_group_label(age, age_boundaries)
+    for i in eachindex(age_boundaries)
+        if age <= age_boundaries[i]
+            return "<=$(age_boundaries[i])"
+        end
     end
+    return ">$(age_boundaries[end])"
 end
 
-ge_groups = ["<=45", "46-64", ">=65"]
-
-age_order = [
-    "<=45", "46-64", ">=65"
-]
+# We take the age boundaries and convert them into labels for age groups
+age_groups = [i == length(age_boundaries) + 1 ? ">$(age_boundaries[end])" : "<=$(age_boundaries[i])" for i in 1:length(age_boundaries)+1]
 
 # Apply the age classification to the population dataset
-people.age_group = age_group_label.(people.age)
+people.age_group = age_group_label.(people.age, Ref(age_boundaries))
 
 
 # Convert the age_group column to an ordered categorical variable
 people.age_group = categorical(
     people.age_group;
     ordered = true,
-    levels = age_order
+    levels = age_groups
 )
 
 
@@ -49,8 +45,9 @@ people.age_group = categorical(
 
 ## === Distribute Concert Participants ===
 
-# Function to distribute participants into groups with minimal rounding errors
-# This ensures the total number of participants matches the input while preserving percentages
+# Function to distribute participants into groups with minimal rounding errors, especially important the more subgroups you have
+# This ensures the total number of participants matches the input (we end up with exactly the total number we declared at the beginning)
+    # while preserving percentages as close as possible
 function nice_split(total, groups_percentage_temp)
     # Calculate the raw number of individuals per group
     groups_vector_raw = total * groups_percentage_temp
@@ -58,10 +55,10 @@ function nice_split(total, groups_percentage_temp)
     # Round up the total to ensure all individuals are accounted for
     total_from_raw = ceil(sum(groups_vector_raw))
 
-    # Floor the raw values to get integer counts per group
+    # Floor the raw values to get the integer counts per group (this is the number of individuals that are assigned for sure to each group)
     groups_vector = floor.(Int, groups_vector_raw)
 
-    # Calculate the remaining individuals due to flooring
+    # Calculate the remaining individuals due to flooring (how many individuals have not being assigned fully to a group)
     remainder = total_from_raw - sum(groups_vector)
 
     # Extract the decimal parts remaining
@@ -70,7 +67,7 @@ function nice_split(total, groups_percentage_temp)
     # Sort indices by decimal part, from largest to smallest
     idx = sortperm(vec(decimals), rev = true)
 
-    # For each individual remaining (remainder) add them to a group, starting from the group
+    # For each individual not assigned (remainder) add them to a group, starting from the group
         # with the highest remainder
     for i in 1:Int(remainder)
         idx_3D = CartesianIndices(decimals)[idx[i]]
@@ -81,20 +78,29 @@ function nice_split(total, groups_percentage_temp)
     return groups_vector
 end
 
-# Use predefined numbers or percentages for concert groups based on the flag
+# as we have the possibility of declaring exact numbers of sitting/standing OR the percentage of sitting/standing
+    # we need to have the right groups
+# if we are giving the exact numbers for the two locations, use them
 if concert_groups_number_true
+    # use the numbers as concert groups
     concert_groups = concert_groups_number
+# else if we are giving the percentages, ignore the numbers and use the percentages
 else
     concert_groups = concert_groups_percentage
 end
 
 # Initialize a 3D matrix to store the percentage of participants per subgroup
-# Dimensions: (concert group, age group, 2)
+# Dimensions: (concert group, age group, 2 (sexs))
 # Populate the matrix with the percentage of participants for each subgroup combination
 groups_percentage = zeros(Float64, length(concert_groups), length(age_groups_percentage), 2)
+
+# for each concert_groups (event)
 for loc in eachindex(concert_groups)
+    # and for each age group
     for age in eachindex(age_groups_percentage)
+        # calculate the percentage of males that are in that concert groups, and age group
         groups_percentage[loc, age, 1] = concert_groups[loc] * age_groups_percentage[age] * sex_groups_percentage[age][1]
+        # calculate the percentage of females that are in that concert groups, and age group
         groups_percentage[loc, age, 2] = concert_groups[loc] * age_groups_percentage[age] * sex_groups_percentage[age][2]
     end
 end    
@@ -104,11 +110,16 @@ end
 groups_total = zeros(Int, length(concert_groups), length(age_groups_percentage), 2)
 
 # Assign participants to subgroups using either predefined numbers or percentages
+    # if we gave the exact numbers for each event, when we call the nice_split function the names are a misnomer.
+    # When we calculate the groups_percentages, as they get multiplied by concert_groups (that in this case are a number) we get
+    # a number of individuals (not integer) instead of a percentage.
+    # As such we pass as total 1, otherwise we would have population * population
 if concert_groups_number_true
     # If using exact numbers, distribute the total proportionally across subgroups
     groups_total = nice_split(1, groups_percentage)
 else
-    # If using percentages, distribute the total event size across subgroups
+    # in case of percentage this is easier. groups_percentages are proper percentages and so we can
+        # easily split the event_size_total using the percentages
     groups_total = nice_split(event_size_total, groups_percentage)
 end
 
@@ -121,13 +132,14 @@ end
 people.occupation .= -1
 
 # Function to assign individuals to concert groups based on age, sex, and subgroup counts
-function assign_concert!(pop::DataFrame, groups_total, age_order, sex_levels, concert_attendance_levels)
+function assign_concert!(pop::DataFrame, groups_total, age_groups, sex_levels, concert_attendance_levels)
     # Iterate over each concert setting
     for (i, loc) in enumerate(concert_attendance_levels)
         # Iterate over each age group
-        for (j, age) in enumerate(age_order)
+        for (j, age) in enumerate(age_groups)
             # Iterate over each sex group
             for (k, sex) in enumerate(sex_levels)
+
                 # Skip if no participants are assigned to this subgroup
                 n = groups_total[i, j, k]
                 n == 0 && continue
@@ -161,7 +173,7 @@ end
 assign_concert!(
     people,
     groups_total,
-    age_order,
+    age_groups,
     sex_levels,
     concert_attendance_levels
 )
@@ -170,12 +182,15 @@ assign_concert!(
 
 
 ## === Validate and Analyze Results ===
+# This section does not truly run when a simulation is called
+    # it contains a series of tests and data that can be used to check that the previous code in this file is splitting the population as expected
+
 
 # Count the number of people in each attendance category
 countmap(people.occupation)
 
-# Count the number of people in a specific subgroup
-sum((people.age_group .== "31-35") .& (people.sex .== 2) .& (people.occupation .== 1))
+# Count the number of people in a specific subgroup (age group * sex * occupation)
+sum((people.age_group .== ">65") .& (people.sex .== 2) .& (people.occupation .== 1))
 
 # Extract and analyze the sitting subgroup
 sitting = people[people.occupation .== 1, :]
@@ -190,7 +205,7 @@ sitting_counts = combine(
 sitting_counts.age_group = categorical(
     sitting_counts.age_group;
     ordered = true,
-    levels = age_order
+    levels = age_groups
 )
 
 # Extract and analyze the standing subgroup
@@ -206,7 +221,7 @@ standing_counts = combine(
 standing_counts.age_group = categorical(
     standing_counts.age_group;
     ordered = true,
-    levels = age_order
+    levels = age_groups
 )
 
 # Sort both DataFrames by age group for visualization

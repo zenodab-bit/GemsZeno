@@ -1,0 +1,159 @@
+export Critical
+
+"""
+    Critical <: ProgressionCategory
+
+A disease progression category for individuals who develop critical symptoms requiring ICU care, with a probability of death.
+
+**IMPORTANT**: The infectiousness onset must be at least 1 tick after exposure to avoid issues with immediate transmission.
+Therefore, the calculation for infectiousness_onset includes a +1 offset.
+The provided distributions should account for this offset to ensure realistic timing.
+Providing, for example a Poisson(2) distribution would result in an average of 3 ticks from exposure to infectiousness onset (Poisson(2) + 1).
+
+# Disease events
+`exposure` -> `infectiousness_onset` -> `symptom_onset` -> `severeness_onset` -> `hospital_admission` -> `icu_admission` -> (`icu_discharge` -> `hospital_discharge` -> `severeness_offset` -> `recovery`) OR (`death`).
+
+# Parameters
+- `exposure_to_infectiousness_onset::Union{Distribution, Real}`: Time from exposure to becoming infectious.
+- `infectiousness_onset_to_symptom_onset::Union{Distribution, Real}`: Time from becoming infectious to symptom onset.
+- `symptom_onset_to_severeness_onset::Union{Distribution, Real}`: Time from symptom onset to severeness onset.
+- `severeness_onset_to_hospital_admission::Union{Distribution, Real}`: Time from severeness onset to hospital admission.
+- `hospital_admission_to_icu_admission::Union{Distribution, Real}`: Time from hospital admission to ICU admission.
+- `death_probability::Real`: Probability of death for individuals in this progression category. Must be between 0 and 1.
+- `icu_admission_to_icu_discharge::Union{Distribution, Real}`: Time from ICU admission to ICU discharge (if recovering).
+- `icu_discharge_to_hospital_discharge::Union{Distribution, Real}`: Time from ICU discharge to hospital discharge (if recovering).
+- `hospital_discharge_to_severeness_offset::Union{Distribution, Real}`: Time from hospital discharge to severeness offset (if recovering).
+- `severeness_offset_to_recovery::Union{Distribution, Real}`: Time from severeness offset to recovery (if recovering).
+- `icu_admission_to_death::Union{Distribution, Real}`: Time from ICU admission to death (if dying).
+
+# Example
+
+The code below instantiates a `Critical` progression category with specific distributions for the time intervals and a death probability.
+
+```julia
+dp = Critical(
+    exposure_to_infectiousness_onset = Poisson(3),
+    infectiousness_onset_to_symptom_onset = Poisson(1),
+    symptom_onset_to_severeness_onset = Poisson(2),
+    severeness_onset_to_hospital_admission = Poisson(1),
+    hospital_admission_to_icu_admission = Poisson(1),
+    death_probability = 0.3,
+    icu_admission_to_icu_discharge = Poisson(10),
+    icu_discharge_to_hospital_discharge = Poisson(5),
+    hospital_discharge_to_recovery = Poisson(7),
+    icu_admission_to_death = Poisson(10)
+)
+```
+"""
+mutable struct Critical <: ProgressionCategory
+    exposure_to_infectiousness_onset::Union{Distribution, Real}
+    infectiousness_onset_to_symptom_onset::Union{Distribution, Real}
+    symptom_onset_to_severeness_onset::Union{Distribution, Real}
+    severeness_onset_to_hospital_admission::Union{Distribution, Real}
+    hospital_admission_to_icu_admission::Union{Distribution, Real}
+
+    # death probability
+    death_probability::Real
+
+    # if recovering
+    icu_admission_to_icu_discharge::Union{Distribution, Real}
+    icu_discharge_to_hospital_discharge::Union{Distribution, Real}
+    hospital_discharge_to_severeness_offset::Union{Distribution, Real}
+    severeness_offset_to_recovery::Union{Distribution, Real}
+
+    # if dying
+    icu_admission_to_death::Union{Distribution, Real}
+
+    function Critical(; death_probability, 
+        exposure_to_infectiousness_onset,
+        infectiousness_onset_to_symptom_onset,
+        symptom_onset_to_severeness_onset,
+        severeness_onset_to_hospital_admission,
+        hospital_admission_to_icu_admission,
+        icu_admission_to_icu_discharge,
+        icu_discharge_to_hospital_discharge,
+        hospital_discharge_to_severeness_offset,
+        severeness_offset_to_recovery,
+        icu_admission_to_death)
+
+        0.0 <= death_probability <= 1.0 || throw(ArgumentError("death_probability must be between 0 and 1."))
+
+        return new(exposure_to_infectiousness_onset,
+            infectiousness_onset_to_symptom_onset,
+            symptom_onset_to_severeness_onset,
+            severeness_onset_to_hospital_admission,
+            hospital_admission_to_icu_admission,
+            death_probability,
+            icu_admission_to_icu_discharge,
+            icu_discharge_to_hospital_discharge,
+            hospital_discharge_to_severeness_offset,
+            severeness_offset_to_recovery,
+            icu_admission_to_death)
+    end
+
+end
+
+
+function calculate_progression(individual::Individual, tick::Int16, dp::Critical, rng::Xoshiro)
+
+    # Calculate the time to infectiousness
+    infectiousness_onset::Int16 = round(Int16, tick + 1 + _rand_val(dp.exposure_to_infectiousness_onset, rng))
+
+    # Calculate the time to symptom onset
+    symptom_onset::Int16 = round(Int16, infectiousness_onset + _rand_val(dp.infectiousness_onset_to_symptom_onset, rng))
+
+    # Calculate the time to severeness onset
+    severeness_onset::Int16 = round(Int16, symptom_onset + _rand_val(dp.symptom_onset_to_severeness_onset, rng))
+
+    # Calculate the time to hospital admission
+    hospital_admission::Int16 = round(Int16, severeness_onset + _rand_val(dp.severeness_onset_to_hospital_admission, rng))
+
+    # Calculate the time to ICU admission
+    icu_admission::Int16 = round(Int16, hospital_admission + _rand_val(dp.hospital_admission_to_icu_admission, rng))
+
+    # Decide recovery or death
+    # If individual dies
+    if gems_rand(rng) <= Float64(dp.death_probability)
+        # Calculate the time to death
+        death::Int16 = round(Int16, icu_admission + _rand_val(dp.icu_admission_to_death, rng))
+
+        return DiseaseProgression(
+            exposure = tick,
+            infectiousness_onset = infectiousness_onset,
+            symptom_onset = symptom_onset,
+            severeness_onset = severeness_onset,
+            hospital_admission = hospital_admission,
+            icu_admission = icu_admission,
+            icu_discharge = death,
+            hospital_discharge = death,
+            severeness_offset = death,
+            death = death
+        )
+    end
+
+    # If individual recovers
+    # Calculate the time to ICU discharge
+    icu_discharge::Int16 = round(Int16, icu_admission + _rand_val(dp.icu_admission_to_icu_discharge, rng))
+
+    # Calculate the time to hospital discharge
+    hospital_discharge::Int16 = round(Int16, icu_discharge + _rand_val(dp.icu_discharge_to_hospital_discharge, rng))
+
+    # Calculate the time to severeness offset
+    severeness_offset::Int16 = round(Int16, hospital_discharge + _rand_val(dp.hospital_discharge_to_severeness_offset, rng))
+
+    # Calculate the time to recovery
+    recovery::Int16 = round(Int16, severeness_offset + _rand_val(dp.severeness_offset_to_recovery, rng))
+
+    return DiseaseProgression(
+        exposure = tick,
+        infectiousness_onset = infectiousness_onset,
+        symptom_onset = symptom_onset,
+        severeness_onset = severeness_onset,
+        hospital_admission = hospital_admission,
+        icu_admission = icu_admission,
+        icu_discharge = icu_discharge,
+        hospital_discharge = hospital_discharge,
+        severeness_offset = severeness_offset,
+        recovery = recovery
+    )
+end

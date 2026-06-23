@@ -213,4 +213,4 @@
                 type = "ConcertContacts"
                 
                 [Settings.GlobalSetting.contact_sampling_method.parameters]
-                    contactparameter = 1.00
+                    contactparameter = 1

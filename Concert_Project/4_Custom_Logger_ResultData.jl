@@ -39,22 +39,22 @@ function concert_infectious(sim)
     total_susceptible = 0
 
     for i in sim.population.individuals
-    if i.infectious == true
-        total_infectious += 1
-        if i.occupation == 1
-            infectious_concertgoers_1 += 1
-        elseif i.occupation == 2
-            infectious_concertgoers_2 += 1
+        if i.infectious == true
+            total_infectious += 1
+            if occupation(i) == 1
+                infectious_concertgoers_1 += 1
+            elseif occupation(i) == 2
+                infectious_concertgoers_2 += 1
+            end
+        elseif recovery(i) != -1    # has a recovery tick assigned → recovered
+            total_recovered += 1
+        elseif death(i) != -1       # has a death tick assigned → dead
+            total_dead += 1
         end
-    elseif i.recovered == true
-        total_recovered += 1
-    elseif i.dead == true
-        total_dead += 1
+        if number_of_infections(i) == 0 && death(i) == -1   # never infected and alive → susceptible
+            total_susceptible += 1
+        end
     end
-    if i.number_of_infections == 0 && i.dead == false
-        total_susceptible += 1
-    end
-end
 
     return (
         total_infectious       = total_infectious,
@@ -63,29 +63,6 @@ end
         total_susceptible      = total_susceptible,
         infectious_sitting     = infectious_concertgoers_1,
         infectious_standing    = infectious_concertgoers_2
-    )
-end
-
-function concert_infectious(sim)
-    total_infectious      = 0
-    infectious_sitting    = 0
-    infectious_standing   = 0
-
-    for i in sim.population.individuals
-        if i.infectious == true
-            total_infectious += 1
-            if i.occupation == 1
-                infectious_sitting += 1
-            elseif i.occupation == 2
-                infectious_standing += 1
-            end
-        end
-    end
-
-    return (
-        total_infectious    = total_infectious,
-        infectious_sitting  = infectious_sitting,
-        infectious_standing = infectious_standing
     )
 end
 

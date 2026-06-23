@@ -6,7 +6,8 @@ using Random: Xoshiro, shuffle
 
 # Define a custom contact sampling method for concert settings
 # Inherits from GEMS.ContactSamplingMethod to override default behavior
-mutable struct ConcertContacts <: GEMS.ContactSamplingMethod
+@with_kw mutable struct ConcertContacts <: GEMS.ContactSamplingMethod
+    contactparameter::Float64 = 0.0
 end
 
 
