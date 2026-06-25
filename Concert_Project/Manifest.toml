@@ -731,9 +731,9 @@ version = "303.1100.500+0"
 
 [[deps.GEMS]]
 deps = ["CSV", "CategoricalArrays", "ContentHashes", "CpuId", "DSP", "DataFrames", "DataStructures", "Dates", "Debugger", "DelimitedFiles", "Distributions", "Documenter", "FileIO", "Format", "FunctionWrappers", "GMT", "HTTP", "ImageIO", "InteractiveUtils", "JLD2", "JSON", "Logging", "LoggingExtras", "Optimization", "OptimizationCMAEvolutionStrategy", "OrderedCollections", "Parameters", "PkgVersion", "Plots", "PrettyTables", "ProgressBars", "RData", "Random", "Revise", "RollingFunctions", "Shapefile", "Statistics", "StatsBase", "StatsPlots", "Suppressor", "TOML", "TimerOutputs", "UUIDs", "UrlDownload", "VegaLite", "VideoIO", "Weave", "ZipFile"]
-path = "../GGEMSZeno"
+path = "/home/bernaze/GemsZeno-new/GGEMSZeno"
 uuid = "be47d99e-7859-414d-a902-bf4cb6b83c8a"
-version = "1.1.1"
+version = "1.1.2"
 
 [[deps.GEOS_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]

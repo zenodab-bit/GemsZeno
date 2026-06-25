@@ -11,7 +11,7 @@ setting_colors = Dict('h' => :orange, 'c' => :red, 'o' => :purple, 'g' => :blue,
 const setting_labels = Dict('h' => "Household", 'c' => "SchoolClass", 'o' => "Office", 'g' => "GlobalSetting", 'm' => "Municipality")
 const setting_list = ['h', 'c', 'o', 'g', 'm']
 
-function fmt(x; digits=1)
+function fmt(x; digits=2)
     round(x, digits=digits)
 end
 
@@ -58,10 +58,9 @@ function shaded_series!(p, series_list, colors, labels)
     for (series, color, label) in zip(series_list, colors, labels)
         mat = hcat(series...)
         avg = mean(mat, dims=2)[:]
-        lo = minimum(mat, dims=2)[:]
-        hi = maximum(mat, dims=2)[:]
+        sd = std(mat, dims=2)[:]
         plot!(p, 1:length(avg), avg,
-            ribbon=(avg .- lo, hi .- avg),
+            ribbon=sd,
             fillalpha=0.2,
             label=label,
             color=color,
@@ -200,25 +199,22 @@ function plot_day(day)
 
 
     gen_sit = results_by_day[day].chain.gen_sitting
-    gen_sta = results_by_day[day].chain.gen_standing
+gen_sta = results_by_day[day].chain.gen_standing
 
-    p5 = plot(title="Downstream Infections by Generation — Day $day",
-        xlabel="Generation", ylabel="Infections", dpi=300)
-    # for sitting
-    avg_sit = mean(gen_sit, dims=2)[:]
-    lo_sit = minimum(gen_sit, dims=2)[:]
-    hi_sit = maximum(gen_sit, dims=2)[:]
-    plot!(p5, 1:length(avg_sit), avg_sit,
-        ribbon=(avg_sit .- lo_sit, hi_sit .- avg_sit),
-        fillalpha=0.2, label="Sitting", color=:blue, linewidth=2)
+p5 = plot(title="Downstream Infections by Generation — Day $day",
+    xlabel="Generation", ylabel="Infections", dpi=300)
 
-    # for standing
-    avg_sta = mean(gen_sta, dims=2)[:]
-    lo_sta = minimum(gen_sta, dims=2)[:]
-    hi_sta = maximum(gen_sta, dims=2)[:]
-    plot!(p5, 1:length(avg_sta), avg_sta,
-        ribbon=(avg_sta .- lo_sta, hi_sta .- avg_sta),
-        fillalpha=0.2, label="Standing", color=:red, linewidth=2)
+avg_sit = mean(gen_sit, dims=2)[:]
+std_sit = std(gen_sit, dims=2)[:]
+plot!(p5, 1:length(avg_sit), avg_sit,
+    ribbon=std_sit,
+    fillalpha=0.2, label="Sitting", color=:blue, linewidth=2)
+
+avg_sta = mean(gen_sta, dims=2)[:]
+std_sta = std(gen_sta, dims=2)[:]
+plot!(p5, 1:length(avg_sta), avg_sta,
+    ribbon=std_sta,
+    fillalpha=0.2, label="Standing", color=:red, linewidth=2)
 
     savefig(p5, "Concert_Project/Plots/downstream_by_generation_day$(day).png")
 
