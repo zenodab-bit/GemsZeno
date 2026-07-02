@@ -1,0 +1,7 @@
+Sitting contacts:
+Above 15 mins = 4,264   std = 2,574 median = 4
+Total = 11,247  std = 2,574 median = 11
+
+Seated contacts:
+above 15 mins = 11,719  std = 5,169 median = 12
+Total = 26,443  std = 10,387    median = 26

@@ -109,10 +109,13 @@ open("Concert_Project/Results/$(filename)", "w") do io
         print_metric_row(io, "Same day other", results_by_day[day].concert[:same_day_other_sitting])
         print_metric_row(io, "Infected", results_by_day[day].concert[:infected_sitting])
 
-        m_inf = results_by_day[day].concert[:infected_sitting]
+        m_infected = results_by_day[day].concert[:infected_sitting]
         m_sus = results_by_day[day].concert[:susceptible_sitting]
-        infection_rate_sitting = m_inf.mean / m_sus.mean * 100
+        infection_rate_sitting = m_infected.mean / m_sus.mean * 100
         println(io, "\nInfection rate (sitting): $(fmt(infection_rate_sitting))%")
+
+        m_infectious = results_by_day[day].concert[:infectious_sitting]
+        effective_reproduction = m_infected.mean / m_infectious.mean
 
         println(io, "\nExpected vs Observed (sitting):")
         print_table_header(io)

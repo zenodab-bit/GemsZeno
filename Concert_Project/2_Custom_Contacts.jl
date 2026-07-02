@@ -10,6 +10,16 @@ using Random: Xoshiro, shuffle
     contactparameter::Float64 = 0.0
 end
 
+## === Calculate the values needed for binomial distribution ===
+    function negbin_params(mean, std)
+    variance = std^2
+    p = mean / variance
+    r = mean^2 / (variance - mean)
+    return r, p
+end
+
+r_sit, p_sit = negbin_params(mean_number_of_contacts_sitting, std_number_of_contacts_sitting)
+r_sta, p_sta = negbin_params(mean_number_of_contacts_standing, std_number_of_contacts_standing)
 
 
 
@@ -49,13 +59,16 @@ function GEMS.sample_contacts!(
     isempty(same_section_individuals) && return Individual[]
 
     # Sample number of contacts based on concert section
-    num_of_contacts = if ego.occupation == 1
-        rand(rng, Poisson(mean_number_of_contacts_sitting))
+    num_of_contacts = min(
+    if ego.occupation == 1
+        rand(rng, NegativeBinomial(r_sit, p_sit))
     elseif ego.occupation == 2
-        rand(rng, Poisson(mean_number_of_contacts_standing))
+        rand(rng, NegativeBinomial(r_sta, p_sta))
     else
-        0  # Fallback
-    end
+        0
+    end,
+    length(same_section_individuals)
+)
 
     # Pre-allocate space for efficiency
     resize!(indivs, num_of_contacts)
