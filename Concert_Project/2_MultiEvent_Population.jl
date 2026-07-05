@@ -20,6 +20,7 @@ function prepare_population(event_config::EventConfig)
     people.event_id = fill(-1, nrow(people))
     people.section_id = fill(-1, nrow(people))
     people.mean_event_contacts = fill(0.0, nrow(people))
+    people.event_date = fill(Int32(-1), nrow(people))
 
     return people, age_groups, sex_levels
 end  
@@ -43,8 +44,9 @@ function assign_events!(people, event_config, age_groups, sex_levels, rng)
 
                         people.event_id[selected] .= event.id
                         people.section_id[selected] .= parse(Int32, split(section.id, "_")[2])
-                        people.mean_event_contacts[selected] .= section.mean_contacts
+                        people.mean_event_contacts[selected] .= section.mean_event_contacts
                         people.event_date[selected] .= event.date
+                        people.event_date[selected] .= Int32(event.date)
                     end
                 end
         end

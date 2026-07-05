@@ -55,7 +55,7 @@ section_1_2 = EventSection(
 # Define event 1
 event_1 = Event(
     id = 1,
-    date = 40,
+    date = 10,
     sections = [section_1_1, section_1_2],
     date_range = (0, 0),  # unused in precise mode
     n_draws = 0            # unused in precise mode
