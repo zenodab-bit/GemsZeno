@@ -469,6 +469,8 @@ function plot_heatmaps_subset(; tick_range, concert_range)
     savefig(p3, "Concert_Project/Plots/heatmap_peak_exposed_distribution_subset.png")
 end
 
+
+
 ## === Generate plots automatically ===
 plot_infected_boxplot()
 
