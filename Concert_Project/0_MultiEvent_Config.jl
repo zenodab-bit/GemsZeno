@@ -61,9 +61,41 @@ event_1 = Event(
     n_draws = 0            # unused in precise mode
 )
 
+# Define sections for event 1
+section_2_1 = EventSection( 
+    id = "2_1",
+    n = 500,
+    age_dist = [0.211, 0.347, 0.442],
+    sex_dist = [[0.420, 0.580], [0.395, 0.605], [0.426, 0.574]],
+    mean_event_contacts = 4.0,
+    n_range = (0, 0)  # unused in precise mode
+)
+
+# Define event 2
+event_2 = Event(
+    id = 2,
+    date = 20,
+    sections = [section_2_1],
+    date_range = (0,0),
+    n_draws = 0
+)
+
+
+
+# Define sections for event 2
+section_2_1 = EventSection( 
+    id = "2_1",
+    n = 500,
+    age_dist = [0.211, 0.347, 0.442],
+    sex_dist = [[0.420, 0.580], [0.395, 0.605], [0.426, 0.574]],
+    mean_event_contacts = 4.0,
+    n_range = (0, 0)  # unused in precise mode
+)
+
+
 # Full config
 event_config = EventConfig(
-    events = [event_1],
+    events = [event_1, event_2],
     mode = :precise,
     transmission_rate = 0.3,
     age_boundaries = [45, 65]

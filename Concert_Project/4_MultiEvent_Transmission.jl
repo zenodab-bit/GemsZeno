@@ -2,23 +2,28 @@
 # Inherits from GEMS.TransmissionFunction to override default behavior
 @with_kw mutable struct SettingRate <: GEMS.TransmissionFunction
     general_rate::Float64
+    event_dates::Set{Int16} = Set{Int16}()
 end
 
 function GEMS.transmission_probability(
-    transFunc::SettingRate,    # Custom transmission rate struct
-    infecter::Individual,      # Individual who may transmit the infection
-    infected::Individual,      # Individual who may become infected
-    setting::Setting,           # Current setting
-    tick::Int16                 # Current simulation time step
+    transFunc::SettingRate,
+    infecter::Individual,
+    infected::Individual,
+    setting::Setting,
+    tick::Int16
 )::Float64
 
-    if  -1 < recovery(infected) <= tick 
+    if -1 < recovery(infected) <= tick
         return 0.0
     end
-    
-    # For non-concert settings, use the general transmission rate
+
     if !(setting isa GEMS.GlobalSetting)
         return transFunc.general_rate
+    end
+
+    # fast check - is this tick an event day?
+    if !(tick in transFunc.event_dates)
+        return 0.0
     end
 
     if tick == infecter.event_date

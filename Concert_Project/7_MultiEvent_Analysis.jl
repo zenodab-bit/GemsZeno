@@ -1,6 +1,11 @@
-using StatsPlots
+using StatsPlots, Dates
 
 ENV["GKSwstype"] = "100"  # headless mode for server
+
+# === Output folder ===
+mkpath(run_folder)
+mkpath("$run_folder/Plots")
+
 
 # === Helper functions ===
 
@@ -38,9 +43,9 @@ end
 
 function add_event_vlines!(p, event_config)
     for event in event_config.events
-        vline!(p, [event.date], 
-               linestyle=:dash, 
-               color=:black, 
+        vline!(p, [event.date],
+               linestyle=:dash,
+               color=:black,
                label="Event $(event.id) (day $(event.date))",
                linewidth=1.5)
     end
@@ -49,9 +54,9 @@ end
 
 # === Text metrics ===
 
-function print_metrics(aggregated, event_config, bd, run_validation)
-    filename = "Concert_Project/Results/multievent_analysis_x$(n_simulations).txt"
-    
+function print_metrics(aggregated, event_config, bd, run_validation, run_folder)
+    filename = "$run_folder/multievent_analysis.txt"
+
     open(filename, "w") do io
         println(io, "=== MultiEvent Analysis ===")
         println(io, "Simulations: $n_simulations")
@@ -74,13 +79,13 @@ function print_metrics(aggregated, event_config, bd, run_validation)
                 print_table_header(io)
 
                 metrics = aggregated[event.id][section.id]
-                print_metric_row(io, "Susceptible",      metrics[:susceptible])
-                print_metric_row(io, "Infectious",       metrics[:infectious])
-                print_metric_row(io, "Exposed",          metrics[:exposed])
-                print_metric_row(io, "Recovered",        metrics[:recovered])
-                print_metric_row(io, "Dead",             metrics[:dead])
-                print_metric_row(io, "Same day other",   metrics[:same_day_other])
-                print_metric_row(io, "Infected at event",metrics[:infected_at_event])
+                print_metric_row(io, "Susceptible",       metrics[:susceptible])
+                print_metric_row(io, "Infectious",        metrics[:infectious])
+                print_metric_row(io, "Exposed",           metrics[:exposed])
+                print_metric_row(io, "Recovered",         metrics[:recovered])
+                print_metric_row(io, "Dead",              metrics[:dead])
+                print_metric_row(io, "Same day other",    metrics[:same_day_other])
+                print_metric_row(io, "Infected at event", metrics[:infected_at_event])
 
                 infection_rate = metrics[:infected_at_event].mean / section.n * 100
                 println(io, "\nInfection rate: $(fmt(infection_rate))%")
@@ -88,9 +93,9 @@ function print_metrics(aggregated, event_config, bd, run_validation)
                 if run_validation
                     println(io, "\nValidation:")
                     print_table_header(io)
-                    print_metric_row(io, "Expected",  metrics[:expected])
-                    print_metric_row(io, "Std",       metrics[:std])
-                    print_metric_row(io, "Z-score",   metrics[:z_score])
+                    print_metric_row(io, "Expected", metrics[:expected])
+                    print_metric_row(io, "Std",      metrics[:std])
+                    print_metric_row(io, "Z-score",  metrics[:z_score])
                 end
             end
         end
@@ -102,7 +107,7 @@ end
 
 # === Plots ===
 
-function plot_epidemic_overview(bd, event_config)
+function plot_epidemic_overview(bd, event_config, run_folder)
     p1 = gemsplot(bd, type = :TickCases)
     add_event_vlines!(p1, event_config)
 
@@ -113,30 +118,27 @@ function plot_epidemic_overview(bd, event_config)
     add_event_vlines!(p3, event_config)
 
     p_overview = plot(p1, p2, p3, layout=(3, 1), size=(800, 900), dpi=300)
-    savefig(p_overview, "Concert_Project/Plots/multievent_epidemic_overview.png")
+    savefig(p_overview, "$run_folder/Plots/epidemic_overview.png")
     println("Saved: epidemic_overview")
 end
 
 
-function plot_cases_by_setting(bd, event_config)
+function plot_cases_by_setting(bd, event_config, run_folder)
     setting_colors = Dict(
-        'h' => :orange, 
-        'c' => :red, 
-        'o' => :purple, 
-        'g' => :blue, 
-        'm' => :brown,
-        '?' => :gray
+        'h' => :orange,
+        'c' => :red,
+        'o' => :purple,
+        'g' => :blue,
+        'm' => :brown
     )
     setting_labels = Dict(
-        'h' => "Household", 
-        'c' => "SchoolClass", 
-        'o' => "Office", 
-        'g' => "GlobalSetting", 
-        'm' => "Municipality",
-        '?' => "Initial"
+        'h' => "Household",
+        'c' => "SchoolClass",
+        'o' => "Office",
+        'g' => "GlobalSetting",
+        'm' => "Municipality"
     )
 
-    # collect cases by setting across all runs
     all_setting_cases = Dict{Char, Vector{Vector{Float64}}}()
 
     for rd in runs(bd)
@@ -146,9 +148,9 @@ function plot_cases_by_setting(bd, event_config)
 
         for s in keys(setting_labels)
             rows = filter(r -> r.setting_type == s, tick_setting)
-            series = zeros(Float64, n_ticks)
+            series = zeros(Float64, n_ticks + 1)  # +1 for tick 0
             for row in eachrow(rows)
-                series[row.tick] = Float64(row.daily_cases)
+                series[row.tick + 1] = Float64(row.daily_cases)
             end
             if !haskey(all_setting_cases, s)
                 all_setting_cases[s] = Vector{Vector{Float64}}()
@@ -164,7 +166,8 @@ function plot_cases_by_setting(bd, event_config)
         avg = mean(mat, dims=2)[:]
         lo  = minimum(mat, dims=2)[:]
         hi  = maximum(mat, dims=2)[:]
-        plot!(p, 1:length(avg), avg,
+        any(avg .> 0) || continue  # skip empty settings
+        plot!(p, 0:length(avg)-1, avg,
             ribbon=(avg .- lo, hi .- avg),
             fillalpha=0.2,
             label=setting_labels[s],
@@ -172,12 +175,12 @@ function plot_cases_by_setting(bd, event_config)
             linewidth=2)
     end
     add_event_vlines!(p, event_config)
-    savefig(p, "Concert_Project/Plots/multievent_cases_by_setting.png")
+    savefig(p, "$run_folder/Plots/cases_by_setting.png")
     println("Saved: cases_by_setting")
 end
 
 
-function plot_event_seir(aggregated, event_config)
+function plot_event_seir(aggregated, event_config, run_folder)
     for event in event_config.events
         section_ids = [s.id for s in event.sections]
         fields = [:susceptible, :infectious, :exposed, :recovered, :dead]
@@ -193,63 +196,37 @@ function plot_event_seir(aggregated, event_config)
             color = repeat(colors, outer=length(section_ids)),
             dpi = 300
         )
-        savefig(p, "Concert_Project/Plots/multievent_seir_event$(event.id).png")
+        savefig(p, "$run_folder/Plots/seir_event$(event.id).png")
         println("Saved: seir_event$(event.id)")
     end
 end
 
 
-function plot_infected_boxplot(event_results, event_config)
+function plot_infected_boxplot(event_results, event_config, run_folder)
     for event in event_config.events
         section_ids = [s.id for s in event.sections]
-        
-        p = plot(title="Infected at Event $(event.id)", 
+
+        p = plot(title="Infected at Event $(event.id)",
                  xlabel="Section", ylabel="Infected", dpi=300)
-        
+
         for sid in section_ids
             values = Float64[r[event.id][sid].infected_at_event for r in event_results]
             boxplot!(p, [sid], values, label=sid, legend=true)
         end
-        
-        savefig(p, "Concert_Project/Plots/multievent_infected_boxplot_event$(event.id).png")
+
+        savefig(p, "$run_folder/Plots/infected_boxplot_event$(event.id).png")
         println("Saved: infected_boxplot_event$(event.id)")
     end
 end
 
 
-function plot_summary(aggregated, event_config)
-    length(event_config.events) == 1 && return  # skip if only one event
-
-    event_ids = [string(e.id) for e in event_config.events]
-    
-    for section_label in [s.id for s in event_config.events[1].sections]
-        infected_means = Float64[]
-        infected_stds  = Float64[]
-
-        for event in event_config.events
-            if haskey(aggregated[event.id], section_label)
-                push!(infected_means, aggregated[event.id][section_label][:infected_at_event].mean)
-                push!(infected_stds,  aggregated[event.id][section_label][:infected_at_event].std)
-            end
-        end
-
-        p = bar(event_ids, infected_means,
-            yerror=infected_stds,
-            title="Infected at Event — Section $section_label",
-            xlabel="Event", ylabel="Mean Infected",
-            legend=false, dpi=300)
-        savefig(p, "Concert_Project/Plots/multievent_summary_section$(section_label).png")
-        println("Saved: summary_section$section_label")
-    end
-end
-
 
 # === Auto-generate ===
-print_metrics(aggregated, event_config, bd, run_validation)
-plot_epidemic_overview(bd, event_config)
-plot_cases_by_setting(bd, event_config)
-plot_event_seir(aggregated, event_config)
-plot_infected_boxplot(event_results, event_config)
-plot_summary(aggregated, event_config)
+print_metrics(aggregated, event_config, bd, run_validation, run_folder)
+plot_epidemic_overview(bd, event_config, run_folder)
+plot_cases_by_setting(bd, event_config, run_folder)
+plot_event_seir(aggregated, event_config, run_folder)
+plot_infected_boxplot(event_results, event_config, run_folder)
 
-println("\nAnalysis complete. Results saved to Concert_Project/Results/ and Concert_Project/Plots/")
+
+println("\nAnalysis complete. Results saved to $run_folder")

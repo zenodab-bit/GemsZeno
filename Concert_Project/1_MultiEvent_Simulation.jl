@@ -1,4 +1,8 @@
-using GEMS, Parameters, DataFrames, Distributions, CSV, 
+import Pkg
+Pkg.activate(joinpath(@__DIR__, ".."))
+
+
+using GEMS, Parameters, DataFrames, Dates, Distributions, CSV, 
       CategoricalArrays, JLD2, Random, StatsBase, Plots, StatsPlots
 
 include("0_MultiEvent_Config.jl")
@@ -7,7 +11,7 @@ include("3_MultiEvent_Contacts.jl")
 include("4_MultiEvent_Transmission.jl")
 include("6_MultiEvent_Helpers.jl")
 
-n_simulations = 1
+n_simulations = 2
 rng = Xoshiro(1234)
 run_validation = false
 
@@ -25,15 +29,24 @@ for row in eachrow(people)
 end
 
 # --- Run batch ---
+transmission_func = SettingRate(
+    general_rate = event_config.transmission_rate,
+    event_dates = Set{Int16}(Int16(e.date) for e in event_config.events)
+)
+
 b = Batch(
     n_runs = n_simulations,
-    configfile = "Concert_Project/toml/config_concert_covid.toml",
+    configfile = joinpath(@__DIR__, "toml", "config_concert_covid.toml"),
     population = people,
-    settingsfile = "Concert_Project/Datastorage/settings_Saalekreis.jld2",
+    settingsfile = joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"),
     ind_extension = [:event_id, :section_id, :mean_event_contacts, :event_date],
+    transmission_function = transmission_func,
     label = "MultiEvent simulation"
 )
+
 bd = BatchData(b; rd_style = "EssentialResultData")
+
+run_folder = "Concert_Project/Results/run_$(n_simulations)sims_$(Dates.format(Dates.now(), "yyyy-mm-dd_HH-MM"))"
 
 # --- Per-event analysis ---
 event_results = Vector{Any}()
