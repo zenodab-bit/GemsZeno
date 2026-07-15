@@ -27,10 +27,12 @@ function GEMS.transmission_probability(
     end
 
     # find infecter's event today
+    isempty(infecter.event_dates) && return 0.0
     idx_a = findfirst(==(tick), infecter.event_dates)
     idx_a === nothing && return 0.0
 
     # find infected's event today
+    isempty(infected.event_dates) && return 0.0
     idx_b = findfirst(==(tick), infected.event_dates)
     idx_b === nothing && return 0.0
 

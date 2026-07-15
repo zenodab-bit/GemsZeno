@@ -119,8 +119,6 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             (people.age .<= category.max_age)
         )
 
-        # compute weights for all base candidates
-        weights = compute_weights(people, base_candidates, category, event_config)
 
         # split between loyal and new
         n_loyal = round(Int, event.n * category.loyalty)
@@ -162,28 +160,4 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             push!(people.event_dates[idx],         Int32(event.date))
         end
     end
-end
-
-
-## === Validate Assignment ===
-
-function validate_assignment(people::DataFrame, events::Vector{Event})
-    println("\n=== Assignment Validation ===")
-
-    total_assigned = sum(length(row.event_ids) > 0 for row in eachrow(people))
-    multi_assigned = sum(length(row.event_ids) > 1 for row in eachrow(people))
-    println("People attending at least one event: $total_assigned")
-    println("People attending multiple events:    $multi_assigned")
-
-    for event in events
-        assigned = sum(
-            any(row.event_ids .== event.category_id) &&
-            any(row.section_ids .== event.section_id) &&
-            any(row.event_dates .== event.date)
-            for row in eachrow(people)
-        )
-        println("Event $(event.id) (date=$(event.date), n=$(event.n)): $assigned assigned")
-    end
-
-    println("Unassigned: $(nrow(people) - total_assigned) / $(nrow(people))")
 end

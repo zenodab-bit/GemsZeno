@@ -1,4 +1,4 @@
-function analyze_event_population(inf_log::DataFrame, people::DataFrame, events::Vector{Event}, run_validation::Bool=false)
+function analyze_event_population(inf_log::DataFrame, people::DataFrame, events::Vector{Event})
     results = Dict{String, Any}()
 
     for event in events
@@ -65,23 +65,6 @@ function analyze_event_population(inf_log::DataFrame, people::DataFrame, events:
             same_day_other    = same_day_other,
             infected_at_event = infected_at_event
         )
-
-        if run_validation
-            n_section  = length(section_ids)
-            exponent   = n_section > 1 ?
-                         infectious * event.mean_contacts *
-                         event_config.transmission_rate / (n_section - 1) : 0.0
-            p_infected = 1 - exp(-exponent)
-            expected   = susceptible * p_infected
-            std_val    = sqrt(susceptible * p_infected * (1 - p_infected))
-            z_score    = std_val > 0 ? (infected_at_event - expected) / std_val : 0.0
-
-            event_data = merge(event_data, (
-                expected = expected,
-                std      = std_val,
-                z_score  = z_score
-            ))
-        end
 
         results[event.id] = event_data
     end

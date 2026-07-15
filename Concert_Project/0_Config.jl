@@ -61,7 +61,7 @@ category_1 = Category(
 # Category 2: small concerts — random dates, high loyalty
 category_2 = Category(
     id = 2,
-    date_range = (20, 80),
+    date_range = (60, 80),
     sections = [
         Section(id=1, n_range=(20,40), mean_contacts=8.0)
     ],

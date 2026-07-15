@@ -4,15 +4,17 @@ Pkg.activate(joinpath(@__DIR__, ".."))
 using GEMS, Parameters, DataFrames, Distributions, CSV,
       CategoricalArrays, JLD2, Random, StatsBase, Plots, StatsPlots, Dates
 
-include("0_MultiEvent_Config.jl")
-include("2_MultiEvent_Population.jl")
-include("3_MultiEvent_Contacts.jl")
-include("4_MultiEvent_Transmission.jl")
-include("6_MultiEvent_Helpers.jl")
+include("0_Config.jl")
+include("2_Population.jl")
+include("3_Contacts.jl")
+include("4_Transmission.jl")
+include("5_Helpers.jl")
 
-n_simulations = 1
-rng = Xoshiro(1234)
+n_simulations = 2
+rng = Xoshiro()
 run_validation = false
+
+
 
 # --- Sample events from categories ---
 events = sample_events(event_config, rng)
@@ -25,7 +27,6 @@ end
 # --- Population setup ---
 people, age_groups, sex_levels = prepare_population(event_config)
 assign_events!(people, events, event_config, rng)
-validate_assignment(people, events)
 
 # --- Build transmission function with event dates ---
 transmission_func = SettingRate(
@@ -49,15 +50,18 @@ bd = BatchData(b; rd_style = "EssentialResultData")
 event_results = Vector{Any}()
 for rd in runs(bd)
     inf_log = infections(rd)
-    result = analyze_event_population(inf_log, people, events, run_validation)
+    result = analyze_event_population(inf_log, people, events)
     push!(event_results, result)
 end
 
 aggregated = aggregate_event_results(event_results)
 
-run_folder = "Concert_Project/Results/run_$(n_simulations)sims_$(Dates.format(Dates.now(), "yyyy-mm-dd_HH-MM"))"
+run_folder = "Results/run_$(n_simulations)sims_$(Dates.format(Dates.now(), "yyyy-mm-dd_HH-MM"))"
 mkpath(run_folder)
-mkpath("$run_folder/Plots")
 
 println("\nSimulation complete.")
-include("7_MultiEvent_Analysis.jl")
+include("6_Analysis.jl")
+
+if run_validation
+    include("7_Validation.jl")
+end

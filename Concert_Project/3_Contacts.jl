@@ -22,14 +22,15 @@ function GEMS.sample_contacts!(
     idx = findfirst(==(tick), ego.event_dates)
     idx === nothing && return Individual[]
 
-    today_event_id   = ego.event_ids[idx]
+    today_event_id = ego.event_ids[idx]
     today_section_id = ego.section_ids[idx]
-    today_contacts   = ego.mean_event_contacts[idx]
+    today_contacts = ego.mean_event_contacts[idx]
 
     # filter to same event and section
     same_section_individuals = Vector{Individual}()
     for x in present_individuals
         x == ego && continue
+        isempty(x.event_dates) && continue  # add here
         jdx = findfirst(==(tick), x.event_dates)
         jdx === nothing && continue
         if x.event_ids[jdx] == today_event_id && x.section_ids[jdx] == today_section_id
