@@ -1,3 +1,6 @@
+import GEMS: sample_contacts!
+using Random: Xoshiro, shuffle
+
 @with_kw mutable struct EventContacts <: GEMS.ContactSamplingMethod
     contactparameter::Float64 = 0.0
 end
@@ -15,20 +18,31 @@ function GEMS.sample_contacts!(
     empty!(indivs)
     ego = present_individuals[individual_index]
 
-    if ego.event_id == -1
-        return Individual[]
-    end
+    # find if ego is attending any event today
+    idx = findfirst(==(tick), ego.event_dates)
+    idx === nothing && return Individual[]
 
+    today_event_id   = ego.event_ids[idx]
+    today_section_id = ego.section_ids[idx]
+    today_contacts   = ego.mean_event_contacts[idx]
+
+    # filter to same event and section
     same_section_individuals = Vector{Individual}()
     for x in present_individuals
-        if x.event_id == ego.event_id && x.section_id == ego.section_id && x != ego
+        x == ego && continue
+        jdx = findfirst(==(tick), x.event_dates)
+        jdx === nothing && continue
+        if x.event_ids[jdx] == today_event_id && x.section_ids[jdx] == today_section_id
             push!(same_section_individuals, x)
         end
     end
 
     isempty(same_section_individuals) && return Individual[]
 
-    num_of_contacts = min(rand(rng, Poisson(ego.mean_event_contacts)), length(same_section_individuals))
+    num_of_contacts = min(
+        rand(rng, Poisson(today_contacts)),
+        length(same_section_individuals)
+    )
 
     resize!(indivs, num_of_contacts)
     shuffled = shuffle(rng, same_section_individuals)

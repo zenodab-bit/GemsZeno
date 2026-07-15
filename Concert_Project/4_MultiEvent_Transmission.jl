@@ -1,5 +1,5 @@
-# Define a custom struct to store setting-specific transmission rates
-# Inherits from GEMS.TransmissionFunction to override default behavior
+import GEMS.transmission_probability
+
 @with_kw mutable struct SettingRate <: GEMS.TransmissionFunction
     general_rate::Float64
     event_dates::Set{Int16} = Set{Int16}()
@@ -21,18 +21,24 @@ function GEMS.transmission_probability(
         return transFunc.general_rate
     end
 
-    # fast check - is this tick an event day?
+    # fast check — is this tick an event day?
     if !(tick in transFunc.event_dates)
         return 0.0
     end
 
-    if tick == infecter.event_date
-        if infecter.event_id == infected.event_id && infecter.event_id != -1
-            if infecter.section_id == infected.section_id
-                return transFunc.general_rate
-            end
-        end
-        return 0.0
+    # find infecter's event today
+    idx_a = findfirst(==(tick), infecter.event_dates)
+    idx_a === nothing && return 0.0
+
+    # find infected's event today
+    idx_b = findfirst(==(tick), infected.event_dates)
+    idx_b === nothing && return 0.0
+
+    # must be same event and same section
+    if infecter.event_ids[idx_a] == infected.event_ids[idx_b] &&
+       infecter.section_ids[idx_a] == infected.section_ids[idx_b]
+        return transFunc.general_rate
     end
+
     return 0.0
 end
