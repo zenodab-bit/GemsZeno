@@ -18,7 +18,7 @@ function GEMS.transmission_probability(
     end
 
     if !(setting isa GEMS.GlobalSetting)
-        return transFunc.general_rate
+        return transFunc.general_rate * infecter.transmission_multiplier
     end
 
     # fast check — is this tick an event day?
@@ -31,15 +31,15 @@ function GEMS.transmission_probability(
     idx_a = findfirst(==(tick), infecter.event_dates)
     idx_a === nothing && return 0.0
 
-    # find infected's event today
     isempty(infected.event_dates) && return 0.0
     idx_b = findfirst(==(tick), infected.event_dates)
     idx_b === nothing && return 0.0
 
     # must be same event and same section
-    if infecter.event_ids[idx_a] == infected.event_ids[idx_b] &&
+    if infecter.category_ids[idx_a] == infected.category_ids[idx_b] &&
+       infecter.event_ids[idx_a] == infected.event_ids[idx_b] &&
        infecter.section_ids[idx_a] == infected.section_ids[idx_b]
-        return transFunc.general_rate
+        return transFunc.general_rate *infecter.transmission_multiplier
     end
 
     return 0.0

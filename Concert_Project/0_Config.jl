@@ -15,9 +15,10 @@ end
     n_draws::Int
     min_age::Int = 0
     max_age::Int = 999
-    age_weights::Vector{Float64} = Float64[]  # per age group, empty = uniform
-    sex_weights::Vector{Float64} = Float64[]  # [male, female], empty = uniform
-    loyalty::Float64 = 0.0
+    age_weights::Vector{Float64} = Float64[]
+    sex_weights::Vector{Float64} = Float64[]
+    core::Float64 = 0.0      # fraction always attending
+    loyalty::Float64 = 0.0   # fraction repeating from pool
 end
 
 @with_kw struct EventConfig
@@ -39,6 +40,20 @@ end
     mean_contacts::Float64
 end
 
+function gamma_params(mean, std)
+    variance = std^2
+    β = variance / mean
+    α = mean / β
+    return α, β
+end
+
+# normal spreaders: mean transmission prob = 0.3, low variance
+α_normal, β_normal = gamma_params(0.3, 0.1)
+
+# superspreaders: mean transmission prob = 0.9, higher variance  
+α_super, β_super = gamma_params(0.3, 0.1)
+
+superspreader_prob = 0.10  # 10% of population
 
 ## === Event Definitions ===
 
@@ -61,20 +76,21 @@ category_1 = Category(
 # Category 2: small concerts — random dates, high loyalty
 category_2 = Category(
     id = 2,
-    date_range = (60, 80),
+    date_range = (10, 40),
     sections = [
         Section(id=1, n_range=(20,40), mean_contacts=8.0)
     ],
-    n_draws = 2,
+    n_draws = 5,
     min_age = 16,
     max_age = 999,
     age_weights = [0.45, 0.40, 0.15],
     sex_weights = [0.55, 0.45],
-    loyalty = 0.5
+    core = 0.3,
+    loyalty = -0.5
 )
 
 event_config = EventConfig(
-    categories = [category_1, category_2],
+    categories = [category_2],
     transmission_rate = 0.3,
     age_boundaries = [45, 65],
     age_dist = [0.211, 0.347, 0.442],

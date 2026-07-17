@@ -2,7 +2,7 @@ import Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
 
 using GEMS, Parameters, DataFrames, Distributions, CSV,
-      CategoricalArrays, JLD2, Random, StatsBase, Plots, StatsPlots, Dates
+      CategoricalArrays, JLD2, Random, StatsBase, Plots, StatsPlots, Dates, TOML
 
 include("0_Config.jl")
 include("2_Population.jl")
@@ -12,7 +12,7 @@ include("5_Helpers.jl")
 
 n_simulations = 2
 rng = Xoshiro()
-run_validation = false
+run_validation = true
 
 
 
@@ -22,6 +22,16 @@ events = sample_events(event_config, rng)
 println("\n=== Sampled Events ===")
 for e in events
     println("Event $(e.id) — date: $(e.date), n: $(e.n), contacts: $(e.mean_contacts)")
+end
+
+# --- Check event dates against simulation length ---
+config = TOML.parsefile(joinpath(@__DIR__, "toml", "config_concert_covid.toml"))
+sim_length = config["Simulation"]["StopCriterion"]["parameters"]["limit"]
+
+for e in events
+    if e.date > sim_length
+        @warn "Event $(e.id) on day $(e.date) is beyond simulation length ($sim_length). Results will be inaccurate."
+    end
 end
 
 # --- Population setup ---
@@ -40,7 +50,7 @@ b = Batch(
     configfile           = joinpath(@__DIR__, "toml", "config_concert_covid.toml"),
     population           = people,
     settingsfile         = joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"),
-    ind_extension        = [:event_ids, :section_ids, :mean_event_contacts, :event_dates],
+    ind_extension = [:category_ids, :event_ids, :section_ids, :mean_event_contacts, :event_dates],
     transmission_function = transmission_func,
     label                = "MultiEvent simulation"
 )
