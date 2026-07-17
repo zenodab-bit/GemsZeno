@@ -171,7 +171,7 @@ function plot_event_seir(aggregated, events, run_folder)
             legend=false,
             dpi=300)
         savefig(p, "$run_folder/seir_$(event.name).png")
-        println("Saved: seir_$(event.id)")
+        println("Saved: seir_$(event.name)")
     end
 end
 

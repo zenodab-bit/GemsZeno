@@ -17,12 +17,12 @@ superspreader_std = 0.15
 category_1 = Category(
     id = 1,
     name = "festival",
-    date_range = (40, 40),
+    date_range = (40, 60),
     sections = [
-        Section(id=1, name="seated", n_range=(50,50), mean_contacts=4.0, std_contacts=6.0),
-        Section(id=2, name="standing", n_range=(50,50), mean_contacts=12.0, std_contacts=18.0)
+        Section(id=1, name="seated", n_range=(300,500), mean_contacts=4.0, std_contacts=6.0),
+        Section(id=2, name="standing", n_range=(800,1000), mean_contacts=12.0, std_contacts=18.0)
     ],
-    n_draws = 1,
+    n_draws = 2,
     min_age = 18,
     max_age = 999,
     age_weights = [0.5, 0.35, 0.15],
@@ -35,7 +35,7 @@ category_2 = Category(
     name = "sport",
     date_range = (10, 40),
     sections = [
-        Section(id=1, name="", n_range=(20,40), mean_contacts=8.0, std_contacts=12.0)
+        Section(id=1, name="", n_range=(200,400), mean_contacts=8.0, std_contacts=12.0)
     ],
     n_draws = 5,
     min_age = 16,
@@ -47,9 +47,9 @@ category_2 = Category(
 )
 
 event_config = EventConfig(
-    categories = [category_2],
+    categories = [category_1, category_2],
     transmission_rate = general_rate,
     age_boundaries = [45, 65],
     age_dist = [0.211, 0.347, 0.442],
     sex_dist = [[0.420, 0.580], [0.395, 0.605], [0.426, 0.574]]
-)
+) 
