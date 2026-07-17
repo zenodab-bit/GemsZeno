@@ -39,7 +39,8 @@ function sample_events(event_config::EventConfig, rng)
                     section_id=section.id,
                     date=date,
                     n=n,
-                    mean_contacts=section.mean_contacts
+                    mean_contacts=section.mean_contacts,
+                    std_contacts=section.std_contacts  # add this
                 ))
             end
         end
@@ -51,7 +52,7 @@ end
 
 ## === Prepare Population ===
 
-function prepare_population(event_config::EventConfig)
+function prepare_population(event_config::EventConfig, rng)
     people = JLD2.load(joinpath(@__DIR__, "Datastorage", "people_Saalekreis.jld2"))["data"]
 
     age_boundaries = event_config.age_boundaries
@@ -70,6 +71,17 @@ function prepare_population(event_config::EventConfig)
     people.mean_event_contacts = [Float64[] for _ in 1:nrow(people)]
     people.event_dates = [Int32[] for _ in 1:nrow(people)]
     people.attendance_counts = [Dict{Int32,Int32}() for _ in 1:nrow(people)]
+    people.std_event_contacts = [Float64[] for _ in 1:nrow(people)]
+
+    α_normal, β_normal = gamma_params(general_rate, std_rate)
+    α_super, β_super = gamma_params(superspreader_rate, superspreader_std)
+
+    people.transmission_prob = Float64[
+        rand() < superspreader_prob ?
+        rand(Gamma(α_super, β_super)) :
+        rand(Gamma(α_normal, β_normal))
+        for _ in 1:nrow(people)
+    ]
 
     return people, age_groups, sex_levels
 end
@@ -218,6 +230,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             push!(people.section_ids[idx], Int32(event.section_id))
             push!(people.mean_event_contacts[idx], event.mean_contacts)
             push!(people.event_dates[idx], Int32(event.date))
+            push!(people.std_event_contacts[idx], event.std_contacts)
         end
         # increment attendance count for this category
         for idx in selected
@@ -229,9 +242,3 @@ end
 
 ## Superspreaders
 
-people.transmission_multiplier = [
-    rand(rng) < superspreader_prob ? 
-    rand(rng, Gamma(α_super, β_super)) :  # superspreader distribution
-    rand(rng, Gamma(α_normal, β_normal))   # normal distribution
-    for _ in 1:nrow(people)
-]

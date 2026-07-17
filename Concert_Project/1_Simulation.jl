@@ -2,7 +2,14 @@ import Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
 
 using GEMS, Parameters, DataFrames, Distributions, CSV,
-      CategoricalArrays, JLD2, Random, StatsBase, Plots, StatsPlots, Dates, TOML
+    CategoricalArrays, JLD2, Random, StatsBase, Plots, StatsPlots, Dates, TOML
+
+# --- Superspreader parameters ---
+general_rate = 0.3
+std_rate = 0.1
+superspreader_prob = 0.10
+superspreader_rate = 0.8
+superspreader_std = 0.15
 
 include("0_Config.jl")
 include("2_Population.jl")
@@ -12,7 +19,8 @@ include("5_Helpers.jl")
 
 n_simulations = 2
 rng = Xoshiro()
-run_validation = true
+run_validation = false
+
 
 
 
@@ -35,26 +43,26 @@ for e in events
 end
 
 # --- Population setup ---
-people, age_groups, sex_levels = prepare_population(event_config)
+people, age_groups, sex_levels = prepare_population(event_config, rng)
 assign_events!(people, events, event_config, rng)
 
 # --- Build transmission function with event dates ---
 transmission_func = SettingRate(
-    general_rate  = event_config.transmission_rate,
-    event_dates   = Set{Int16}(Int16(e.date) for e in events)
+    general_rate=event_config.transmission_rate,
+    event_dates=Set{Int16}(Int16(e.date) for e in events)
 )
 
 # --- Run batch ---
 b = Batch(
-    n_runs               = n_simulations,
-    configfile           = joinpath(@__DIR__, "toml", "config_concert_covid.toml"),
-    population           = people,
-    settingsfile         = joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"),
-    ind_extension = [:category_ids, :event_ids, :section_ids, :mean_event_contacts, :event_dates],
-    transmission_function = transmission_func,
-    label                = "MultiEvent simulation"
+    n_runs=n_simulations,
+    configfile=joinpath(@__DIR__, "toml", "config_concert_covid.toml"),
+    population=people,
+    settingsfile=joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"),
+    ind_extension=[:category_ids, :event_ids, :section_ids, :mean_event_contacts, :std_event_contacts, :event_dates, :transmission_prob],
+    transmission_function=transmission_func,
+    label="MultiEvent simulation"
 )
-bd = BatchData(b; rd_style = "EssentialResultData")
+bd = BatchData(b; rd_style="EssentialResultData")
 
 # --- Per-event analysis ---
 event_results = Vector{Any}()

@@ -138,77 +138,77 @@
 [Settings]
 
     [Settings.Household]
-        [Settings.Household.contact_sampling_method]
-                type = "ContactparameterSampling"
+    [Settings.Household.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.Household.contact_sampling_method.parameters]
+            mean_contacts = 1.9
+            std_contacts = 2.07
 
-                [Settings.Household.contact_sampling_method.parameters]
-                    contactparameter = 1.9
-    [Settings.Office]
-        [Settings.Office.contact_sampling_method]
-                type = "ContactparameterSampling"
+[Settings.Office]
+    [Settings.Office.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.Office.contact_sampling_method.parameters]
+            mean_contacts = 1.8
+            std_contacts = 2.01
 
-                [Settings.Office.contact_sampling_method.parameters]
-                    contactparameter = 1.8
-                    
-    [Settings.School]
-        [Settings.School.contact_sampling_method]
-                type = "ContactparameterSampling"
+[Settings.School]
+    [Settings.School.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.School.contact_sampling_method.parameters]
+            mean_contacts = 0
+            std_contacts = 0
 
-                [Settings.School.contact_sampling_method.parameters]
-                    contactparameter = 0
+[Settings.SchoolClass]
+    [Settings.SchoolClass.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.SchoolClass.contact_sampling_method.parameters]
+            mean_contacts = 2.3
+            std_contacts = 2.27
 
-    [Settings.SchoolClass]
-        [Settings.SchoolClass.contact_sampling_method]
-                type = "ContactparameterSampling"
+[Settings.Municipality]
+    [Settings.Municipality.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.Municipality.contact_sampling_method.parameters]
+            mean_contacts = 0.65
+            std_contacts = 1.21
 
-                [Settings.SchoolClass.contact_sampling_method.parameters]
-                    contactparameter = 2.3
+[Settings.WorkplaceSite]
+    [Settings.WorkplaceSite.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.WorkplaceSite.contact_sampling_method.parameters]
+            mean_contacts = 0
+            std_contacts = 0
 
-    [Settings.Municipality]
-        [Settings.Municipality.contact_sampling_method]
-                type = "ContactparameterSampling"
+[Settings.SchoolComplex]
+    [Settings.SchoolComplex.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.SchoolComplex.contact_sampling_method.parameters]
+            mean_contacts = 0
+            std_contacts = 0
 
-                [Settings.Municipality.contact_sampling_method.parameters]
-                    contactparameter = 0.65
+[Settings.SchoolYear]
+    [Settings.SchoolYear.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.SchoolYear.contact_sampling_method.parameters]
+            mean_contacts = 0
+            std_contacts = 0
 
-    [Settings.WorkplaceSite]
-        [Settings.WorkplaceSite.contact_sampling_method]
-                type = "ContactparameterSampling"
+[Settings.Department]
+    [Settings.Department.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.Department.contact_sampling_method.parameters]
+            mean_contacts = 0
+            std_contacts = 0
 
-                [Settings.WorkplaceSite.contact_sampling_method.parameters]
-                    contactparameter = 0
+[Settings.Workplace]
+    [Settings.Workplace.contact_sampling_method]
+        type = "NegBinContacts"
+        [Settings.Workplace.contact_sampling_method.parameters]
+            mean_contacts = 0
+            std_contacts = 0
 
-    [Settings.SchoolComplex]
-        [Settings.SchoolComplex.contact_sampling_method]
-                type = "ContactparameterSampling"
-
-                [Settings.SchoolComplex.contact_sampling_method.parameters]
-                    contactparameter = 0
-
-    [Settings.SchoolYear]
-        [Settings.SchoolYear.contact_sampling_method]
-                type = "ContactparameterSampling"
-
-                [Settings.SchoolYear.contact_sampling_method.parameters]
-                    contactparameter = 0
-
-    [Settings.Department]
-        [Settings.Department.contact_sampling_method]
-                type = "ContactparameterSampling"
-
-                [Settings.Department.contact_sampling_method.parameters]
-                    contactparameter = 0
-
-    [Settings.Workplace]
-        [Settings.Workplace.contact_sampling_method]
-                type = "ContactparameterSampling"
-
-                [Settings.Workplace.contact_sampling_method.parameters]
-                    contactparameter = 0
-                    
-    [Settings.GlobalSetting]
-        [Settings.GlobalSetting.contact_sampling_method]
-                type = "EventContacts"
-                
-                [Settings.GlobalSetting.contact_sampling_method.parameters]
-                    contactparameter = 1
+[Settings.GlobalSetting]
+    [Settings.GlobalSetting.contact_sampling_method]
+        type = "EventContacts"
+        [Settings.GlobalSetting.contact_sampling_method.parameters]
+            contactparameter = 1

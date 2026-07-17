@@ -18,7 +18,7 @@ function GEMS.transmission_probability(
     end
 
     if !(setting isa GEMS.GlobalSetting)
-        return transFunc.general_rate * infecter.transmission_multiplier
+        return infecter.transmission_prob
     end
 
     # fast check — is this tick an event day?
@@ -39,7 +39,7 @@ function GEMS.transmission_probability(
     if infecter.category_ids[idx_a] == infected.category_ids[idx_b] &&
        infecter.event_ids[idx_a] == infected.event_ids[idx_b] &&
        infecter.section_ids[idx_a] == infected.section_ids[idx_b]
-        return transFunc.general_rate *infecter.transmission_multiplier
+        return infecter.transmission_prob
     end
 
     return 0.0
