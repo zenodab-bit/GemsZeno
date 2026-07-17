@@ -32,15 +32,33 @@ function sample_events(event_config::EventConfig, rng)
                 n = rand(rng, section.n_range[1]:section.n_range[2])
                 id = "$(category.id)_$(draw)_$(section.id)"
 
+                # build human-readable name
+                parts = String[]
+                if !isempty(category.name)
+                    push!(parts, category.name)
+                end
+                if category.n_draws > 1
+                    push!(parts, "draw$(draw)")
+                end
+                if length(category.sections) > 1
+                    if !isempty(section.name)
+                        push!(parts, section.name)
+                    else
+                        push!(parts, "sec$(section.id)")
+                    end
+                end
+                name = isempty(parts) ? id : join(parts, "_")
+
                 push!(events, Event(
-                    id=id,
-                    category_id=category.id,
-                    draw_id=draw,
-                    section_id=section.id,
-                    date=date,
-                    n=n,
-                    mean_contacts=section.mean_contacts,
-                    std_contacts=section.std_contacts  # add this
+                    id            = id,
+                    name          = name,
+                    category_id   = category.id,
+                    draw_id       = draw,
+                    section_id    = section.id,
+                    date          = date,
+                    n             = n,
+                    mean_contacts = section.mean_contacts,
+                    std_contacts  = section.std_contacts
                 ))
             end
         end

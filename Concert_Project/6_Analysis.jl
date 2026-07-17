@@ -88,7 +88,8 @@ function plot_epidemic_overview(bd, events, run_folder)
     p3 = gemsplot(bd, type=:EffectiveReproduction)
     add_event_vlines!(p3, events)
 
-    p_overview = plot(p1, p2, p3, layout=(3, 1), size=(800, 900), dpi=300)
+    p_overview = plot(p1, p2, p3, layout=(3, 1), size=(800, 900), dpi=300,
+         legend=:outertopright)
     savefig(p_overview, "$run_folder/epidemic_overview.png")
     println("Saved: epidemic_overview")
 end
@@ -132,7 +133,8 @@ function plot_cases_by_setting(bd, events, run_folder)
         end
     end
 
-    p = plot(title="Cases by Setting", xlabel="Tick", ylabel="Daily Cases", dpi=300)
+    p = plot(title="Cases by Setting", xlabel="Tick", ylabel="Daily Cases", dpi=300,
+         legend=:outertopright)
     for (s, series_list) in all_setting_cases
         isempty(series_list) && continue
         mat = hcat(series_list...)
@@ -163,12 +165,12 @@ function plot_event_seir(aggregated, events, run_folder)
 
         p = bar(string.(fields), values,
             color=colors,
-            title="SEIR State — Event $(event.id) Day $(event.date)",
+            title = "SEIR State — $(event.name) Day $(event.date)",
             xlabel="Compartment",
             ylabel="Count",
             legend=false,
             dpi=300)
-        savefig(p, "$run_folder/seir_$(event.id).png")
+        savefig(p, "$run_folder/seir_$(event.name).png")
         println("Saved: seir_$(event.id)")
     end
 end
@@ -178,7 +180,8 @@ function plot_infected_boxplot(event_results, events, run_folder)
     event_ids = [e.id for e in events]
     values_per_event = [[r[e.id].infected_at_event for r in event_results] for e in events]
 
-    p = plot(title="Infected at Event", xlabel="Event", ylabel="Infected", dpi=300)
+    p = plot(title="Infected at Event", xlabel="Event", ylabel="Infected", dpi=300,
+         legend=:outertopright)
     for (i, vals) in enumerate(values_per_event)
         boxplot!(p, [event_ids[i]], vals, label=event_ids[i], legend=true)
     end

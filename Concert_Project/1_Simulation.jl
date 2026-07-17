@@ -33,7 +33,7 @@ for e in events
 end
 
 # --- Check event dates against simulation length ---
-config = TOML.parsefile(joinpath(@__DIR__, "toml", "config_concert_covid.toml"))
+config = TOML.parsefile(joinpath(@__DIR__, "config_concert_covid.toml"))
 sim_length = config["Simulation"]["StopCriterion"]["parameters"]["limit"]
 
 for e in events
@@ -55,7 +55,7 @@ transmission_func = SettingRate(
 # --- Run batch ---
 b = Batch(
     n_runs=n_simulations,
-    configfile=joinpath(@__DIR__, "toml", "config_concert_covid.toml"),
+    configfile=joinpath(@__DIR__, "config_concert_covid.toml"),
     population=people,
     settingsfile=joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"),
     ind_extension=[:category_ids, :event_ids, :section_ids, :mean_event_contacts, :std_event_contacts, :event_dates, :transmission_prob],
