@@ -25,14 +25,24 @@ function sample_events(event_config::EventConfig, rng)
     events = Vector{Event}()
 
     for category in event_config.categories
+        used_dates = Set{Int}()  # track dates used by this category
+
         for draw in 1:category.n_draws
-            date = rand(rng, category.date_range[1]:category.date_range[2])
+            # sample date excluding already used ones
+            available_dates = setdiff(category.date_range[1]:category.date_range[2], used_dates)
+
+            if isempty(available_dates)
+                @warn "Category $(category.name): not enough unique dates for $(category.n_draws) draws in range $(category.date_range)."
+                date = rand(rng, category.date_range[1]:category.date_range[2])
+            else
+                date = rand(rng, collect(available_dates))
+            end
+            push!(used_dates, date)
 
             for section in category.sections
                 n = rand(rng, section.n_range[1]:section.n_range[2])
                 id = "$(category.id)_$(draw)_$(section.id)"
 
-                # build human-readable name
                 parts = String[]
                 if !isempty(category.name)
                     push!(parts, category.name)
@@ -50,15 +60,15 @@ function sample_events(event_config::EventConfig, rng)
                 name = isempty(parts) ? id : join(parts, "_")
 
                 push!(events, Event(
-                    id            = id,
-                    name          = name,
-                    category_id   = category.id,
-                    draw_id       = draw,
-                    section_id    = section.id,
-                    date          = date,
-                    n             = n,
-                    mean_contacts = section.mean_contacts,
-                    std_contacts  = section.std_contacts
+                    id=id,
+                    name=name,
+                    category_id=category.id,
+                    draw_id=draw,
+                    section_id=section.id,
+                    date=date,
+                    n=n,
+                    mean_contacts=section.mean_contacts,
+                    std_contacts=section.std_contacts
                 ))
             end
         end
@@ -88,17 +98,17 @@ function prepare_population(event_config::EventConfig, rng)
     people.section_ids = [Int32[] for _ in 1:nrow(people)]
     people.mean_event_contacts = [Float64[] for _ in 1:nrow(people)]
     people.event_dates = [Int32[] for _ in 1:nrow(people)]
-    people.attendance_counts = [Dict{Int32,Int32}() for _ in 1:nrow(people)]
     people.std_event_contacts = [Float64[] for _ in 1:nrow(people)]
 
     α_normal, β_normal = gamma_params(general_rate, std_rate)
     α_super, β_super = gamma_params(superspreader_rate, superspreader_std)
 
+    people.is_superspreader = [rand(rng) < superspreader_prob for _ in 1:nrow(people)]
     people.transmission_prob = Float64[
-        rand() < superspreader_prob ?
-        rand(Gamma(α_super, β_super)) :
-        rand(Gamma(α_normal, β_normal))
-        for _ in 1:nrow(people)
+        people.is_superspreader[i] ?
+        rand(rng, Gamma(α_super, β_super)) :
+        rand(rng, Gamma(α_normal, β_normal))
+        for i in 1:nrow(people)
     ]
 
     return people, age_groups, sex_levels
@@ -139,27 +149,53 @@ end
 ## === Assign Events ===
 
 function assign_events!(people::DataFrame, events::Vector{Event}, event_config::EventConfig, rng)
-    loyal_pools = Dict{Int,Vector{Int}}()
+    loyal_pools = Dict{Int,Dict{Int,Int}}()
     core_groups = Dict{Int,Vector{Int}}()
+    all_core_members = Set{Int}()
 
-    # pre-select core groups for each category
     for category in event_config.categories
-        category.core == 0.0 && continue
+        first_event_idx = findfirst(e -> e.category_id == category.id, events)
+        first_event_idx === nothing && continue
+        first_n = events[first_event_idx].n
 
-        # find first event of this category to determine core size
-        first_event = findfirst(e -> e.category_id == category.id, events)
-        first_event === nothing && continue
-        n_core = round(Int, events[first_event].n * category.core)
-        n_core == 0 && continue
-
-        # eligible candidates
         base_candidates = findall(
             (people.age .>= category.min_age) .&
             (people.age .<= category.max_age)
         )
 
-        weights = compute_weights(people, base_candidates, category, event_config)
-        core_groups[category.id] = sample(rng, base_candidates, Weights(weights), n_core, replace=false)
+        n_core_total = round(Int, first_n * category.core)
+        core_groups[category.id] = Int[]
+
+        # 1. superspreader core
+        if category.min_superspreaders > 0
+            available_supers = filter(idx ->
+                    people.is_superspreader[idx] &&
+                    idx ∉ all_core_members,
+                base_candidates)
+            n_super_core = min(category.min_superspreaders, length(available_supers))
+            if n_super_core < category.min_superspreaders
+                @warn "Category $(category.name): requested $(category.min_superspreaders) superspreader(s) in core but only $n_super_core available."
+            end
+            if n_super_core > 0
+                super_core = sample(rng, available_supers, n_super_core, replace=false)
+                append!(core_groups[category.id], super_core)
+            end
+        end
+
+        # 2. regular core
+        n_regular_core = max(0, n_core_total - length(core_groups[category.id]))
+        if n_regular_core > 0
+            remaining_for_core = filter(idx ->
+                    idx ∉ core_groups[category.id] &&
+                    idx ∉ all_core_members,
+                base_candidates)
+            core_weights = compute_weights(people, remaining_for_core, category, event_config)
+            n_to_sample = min(n_regular_core, length(remaining_for_core))
+            regular_core = sample(rng, remaining_for_core, Weights(core_weights), n_to_sample, replace=false)
+            append!(core_groups[category.id], regular_core)
+        end
+
+        union!(all_core_members, core_groups[category.id])
     end
 
     for event in events
@@ -172,7 +208,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
 
         selected = Int[]
 
-        # 1. add core group (always attend, filter out same-day conflicts)
+        # 1. add core group (filter same-day conflicts)
         if haskey(core_groups, category.id)
             available_core = filter(idx ->
                     !any(people.event_dates[idx] .== event.date),
@@ -180,45 +216,20 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             append!(selected, available_core)
         end
 
-        n_core_selected = length(selected)
-        n_remaining = event.n - n_core_selected
+        # 2. random pool with unified loyalty weights
+        n_remaining = event.n - length(selected)
+        remaining = filter(idx ->
+                idx ∉ selected &&
+                !any(people.event_dates[idx] .== event.date),
+            base_candidates)
 
-        # 2. loyal attendees from pool
-        # 2. loyal attendees from pool
-        n_loyal = category.loyalty > 0 ? round(Int, n_remaining * category.loyalty) : 0
-        if n_loyal > 0 && haskey(loyal_pools, category.id)
-            pool = loyal_pools[category.id]
-            available_pool = filter(idx ->
-                    idx ∉ selected &&
-                    !any(people.event_dates[idx] .== event.date),
-                pool)
-            n_from_pool = min(n_loyal, length(available_pool))
-            append!(selected, sample(rng, available_pool, n_from_pool, replace=false))
-        end
-
-        # 3. new random attendees
-        n_new = event.n - length(selected)
-
-        if category.loyalty < 0 && haskey(loyal_pools, category.id)
-            pool = loyal_pools[category.id]
-            n_to_exclude = round(Int, abs(category.loyalty) * length(pool))
-            excluded = Set(sample(rng, pool, min(n_to_exclude, length(pool)), replace=false))
-            remaining = filter(idx ->
-                    idx ∉ selected &&
-                    idx ∉ excluded &&
-                    !any(people.event_dates[idx] .== event.date),
-                base_candidates)
-        else
-            remaining = filter(idx ->
-                    idx ∉ selected &&
-                    !any(people.event_dates[idx] .== event.date),
-                base_candidates)
-        end
         remaining_weights = compute_weights(people, remaining, category, event_config)
-        # adjust weights based on loyalty and attendance history
-        if category.loyalty != 0.0
+
+        # apply loyalty weights
+        if category.loyalty != 0.0 && haskey(loyal_pools, category.id)
+            pool = loyal_pools[category.id]
             for (i, idx) in enumerate(remaining)
-                n_prev = get(people.attendance_counts[idx], Int32(category.id), 0)
+                n_prev = get(pool, idx, 0)
                 if n_prev > 0
                     remaining_weights[i] *= (1 + category.loyalty)^n_prev
                 end
@@ -226,8 +237,8 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             total = sum(remaining_weights)
             remaining_weights = total > 0 ? remaining_weights ./ total : ones(length(remaining_weights)) ./ length(remaining_weights)
         end
-        n_to_sample = min(n_new, length(remaining))
 
+        n_to_sample = min(n_remaining, length(remaining))
         if n_to_sample > 0
             new_selected = sample(rng, remaining, Weights(remaining_weights), n_to_sample, replace=false)
             append!(selected, new_selected)
@@ -235,10 +246,10 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
 
         # update loyal pool
         if !haskey(loyal_pools, category.id)
-            loyal_pools[category.id] = Int[]
+            loyal_pools[category.id] = Dict{Int,Int}()
         end
         for idx in selected
-            idx ∉ loyal_pools[category.id] && push!(loyal_pools[category.id], idx)
+            loyal_pools[category.id][idx] = get(loyal_pools[category.id], idx, 0) + 1
         end
 
         # assign to people
@@ -247,13 +258,8 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             push!(people.event_ids[idx], Int32(event.draw_id))
             push!(people.section_ids[idx], Int32(event.section_id))
             push!(people.mean_event_contacts[idx], event.mean_contacts)
-            push!(people.event_dates[idx], Int32(event.date))
             push!(people.std_event_contacts[idx], event.std_contacts)
-        end
-        # increment attendance count for this category
-        for idx in selected
-            cat_id = Int32(event.category_id)
-            people.attendance_counts[idx][cat_id] = get(people.attendance_counts[idx], cat_id, 0) + 1
+            push!(people.event_dates[idx], Int32(event.date))
         end
     end
 end

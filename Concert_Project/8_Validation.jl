@@ -1,11 +1,22 @@
 # 7_Validation.jl
 # Run after simulation and analysis — requires: people, events, aggregated, event_config
 
-function validate_assignment(people::DataFrame, events::Vector{Event})
+function validate_assignment(people::DataFrame, events::Vector{Event}, event_config::EventConfig)
     println("\n=== Assignment Validation ===")
 
     total_assigned = sum(length(row.event_ids) > 0 for row in eachrow(people))
     multi_assigned = sum(length(row.event_ids) > 1 for row in eachrow(people))
+
+    # calculate core sizes per category
+    core_sizes = Dict{Int, Int}()
+    max_draws = Dict{Int, Int}()
+    for category in event_config.categories
+        first_event = findfirst(e -> e.category_id == category.id, events)
+        first_event === nothing && continue
+        n_core = round(Int, events[first_event].n * category.core)
+        core_sizes[category.id] = n_core
+        max_draws[category.id] = category.n_draws * length(category.sections)
+    end
 
     attendance_counts = countmap(length(row.event_ids) for row in eachrow(people))
     println("\nAttendance distribution:")
@@ -13,7 +24,14 @@ function validate_assignment(people::DataFrame, events::Vector{Event})
         if n == 0
             println("  0 events: $(attendance_counts[n]) people (unassigned)")
         else
-            println("  $n event(s): $(attendance_counts[n]) people")
+            # check if this matches a core group's max attendance
+            core_note = ""
+            for (cat_id, max_att) in max_draws
+                if n == max_att && haskey(core_sizes, cat_id)
+                    core_note = " ($(core_sizes[cat_id]) core + $(attendance_counts[n] - core_sizes[cat_id]) non-core)"
+                end
+            end
+            println("  $n event(s): $(attendance_counts[n]) people$core_note")
         end
     end
 
@@ -35,41 +53,7 @@ function validate_assignment(people::DataFrame, events::Vector{Event})
     println("Unassigned: $(nrow(people) - total_assigned) / $(nrow(people))")
 end
 
-function validate_loyalty(people::DataFrame, events::Vector{Event}, event_config::EventConfig)
-    println("\n=== Loyalty Validation ===")
 
-    for category in event_config.categories
-        category.loyalty == 0.0 && continue
-
-        cat_events = filter(e -> e.category_id == category.id, events)
-        length(cat_events) <= 1 && continue
-
-        println("\nCategory $(category.id) — loyalty=$(category.loyalty)")
-
-        # build attendee sets per draw
-        draw_attendees = [Set{Int32}(row.id for row in eachrow(people)
-                                                if any((row.category_ids .== e.category_id) .&
-                                                    (row.event_ids .== e.draw_id) .&
-                                                    (row.section_ids .== e.section_id) .&
-                                                    (row.event_dates .== e.date)))
-                          for e in cat_events]
-
-        # cumulative loyal pool
-        loyal_pool = Set{Int32}()
-        union!(loyal_pool, draw_attendees[1])
-
-        for i in 2:length(cat_events)
-            current_event = cat_events[i]
-            n_core = round(Int, current_event.n * category.core)
-            n_loyal_expected = round(Int, (current_event.n - n_core) * category.loyalty)
-            expected_overlap = n_core + n_loyal_expected
-            overlap = length(intersect(draw_attendees[i], loyal_pool))
-            status = overlap ≈ expected_overlap ? "✓" : "✗"
-            println("  Draw $(current_event.draw_id): $overlap repeat attendees from pool of $(length(loyal_pool)) (expected ~$expected_overlap)")
-            union!(loyal_pool, draw_attendees[i])  # add CURRENT draw, not previous
-        end
-    end
-end
 
 
 function validate_results(aggregated::Dict, events::Vector{Event})
@@ -207,8 +191,7 @@ function validate_epidemic_state(aggregated, events, bd, event_config)
 end
 
 # === Auto-run validation ===
-validate_assignment(people, events)
-validate_loyalty(people, events, event_config)
+validate_assignment(people, events, event_config)
 validate_results(aggregated, events)
 validate_demographics(people, events, event_config)
 validate_epidemic_state(aggregated, events, bd, event_config)

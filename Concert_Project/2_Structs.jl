@@ -36,6 +36,7 @@ end
     sex_weights::Vector{Float64} = Float64[]
     core::Float64 = 0.0
     loyalty::Float64 = 0.0
+    min_superspreaders::Int = 0
 end
 
 @with_kw struct EventConfig

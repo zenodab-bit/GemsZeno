@@ -27,7 +27,11 @@ category_1 = Category(
     max_age = 999,
     age_weights = [0.5, 0.35, 0.15],
     sex_weights = [0.6, 0.4],
-    loyalty = 0.0
+    core = 0.0,
+    loyalty = 0.0,
+    min_superspreaders = 0
+    
+
 )
 
 category_2 = Category(
@@ -35,15 +39,16 @@ category_2 = Category(
     name = "sport",
     date_range = (10, 40),
     sections = [
-        Section(id=1, name="", n_range=(200,400), mean_contacts=8.0, std_contacts=12.0)
+        Section(id=1, name="", n_range=(300,400), mean_contacts=8.0, std_contacts=12.0)
     ],
     n_draws = 5,
     min_age = 16,
     max_age = 999,
     age_weights = [0.45, 0.40, 0.15],
     sex_weights = [0.55, 0.45],
-    core = 0.3,
-    loyalty = -0.5
+    core = 0.1,
+    loyalty = 2,
+    min_superspreaders = 1
 )
 
 event_config = EventConfig(

@@ -13,8 +13,8 @@ include("5_Transmission.jl")
 include("6_Helpers.jl")
 
 # === Run ===
-n_simulations = 2
-run_validation = false
+n_simulations = 1
+run_validation = true
 
 events = sample_events(event_config, rng)
 
