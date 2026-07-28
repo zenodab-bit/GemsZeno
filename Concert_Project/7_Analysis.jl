@@ -198,3 +198,4 @@ plot_event_seir(aggregated, events, run_folder)
 plot_infected_boxplot(event_results, events, run_folder)
 
 println("\nAnalysis complete. Results saved to $run_folder")
+println("7_Analysis")

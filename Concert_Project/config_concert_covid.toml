@@ -1,6 +1,6 @@
 [Simulation]
 
-    # seed = 1234
+    seed = 1234
     tickunit = 'd'
     GlobalSetting = true
     startdate = '2024-01-01'

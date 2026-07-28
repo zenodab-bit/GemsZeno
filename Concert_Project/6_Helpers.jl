@@ -1,10 +1,11 @@
-function analyze_event_population(inf_log::DataFrame, people::DataFrame, events::Vector{Event})
+function analyze_event_population(inf_log::DataFrame, people::DataFrame, events::Vector{Event}, attendees::Dict{String,Vector{Int}})
     results = Dict{String,Any}()
 
     for event in events
-        # get individual ids for this event from people DataFrame
-        # get individual ids for this event from people DataFrame
-        section_ids = Set{Int32}()
+        section_ids = Set{Int32}(people.id[idx] for idx in attendees[event.id])
+
+        # categorize people from infection log
+        infected_before_ids = Set{Int32}()
         for row in eachrow(people)
             for i in eachindex(row.category_ids)      # was row.event_ids
                 if row.category_ids[i] == event.category_id &&
@@ -99,3 +100,31 @@ function aggregate_event_results(results_vector::Vector{Any})
 
     return aggregated
 end
+
+function population_compartment_counts(inf_log::DataFrame, tick::Int, pop_size::Int)
+    infectious = 0
+    exposed    = 0
+    recovered  = 0
+    dead       = 0
+
+    for row in eachrow(inf_log)
+        row.tick >= tick && continue
+        if row.infectiousness_onset <= tick &&
+           (row.recovery > tick || row.recovery == -1) &&
+           (row.death > tick || row.death == -1)
+            infectious += 1
+        elseif row.recovery != -1 && row.recovery <= tick
+            recovered += 1
+        elseif row.death != -1 && row.death <= tick
+            dead += 1
+        else
+            exposed += 1
+        end
+    end
+
+    susceptible = pop_size - infectious - exposed - recovered - dead
+    return (susceptible=susceptible, infectious=infectious, exposed=exposed,
+            recovered=recovered, dead=dead)
+end
+
+println("End 6_Helpers")

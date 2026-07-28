@@ -1,8 +1,9 @@
 # === User Parameters ===
 
-# Simulation
-rng = Xoshiro()
-
+# === Simulation ===
+config = TOML.parsefile(joinpath(@__DIR__, "config_concert_covid.toml"))
+seed = config["Simulation"]["seed"]
+rng = Xoshiro(seed)
 
 # Transmission
 general_rate = 0.3
@@ -47,7 +48,7 @@ category_2 = Category(
     age_weights = [0.45, 0.40, 0.15],
     sex_weights = [0.55, 0.45],
     core = 0.1,
-    loyalty = 2,
+    loyalty = 0,
     min_superspreaders = 1
 )
 
@@ -58,3 +59,7 @@ event_config = EventConfig(
     age_dist = [0.211, 0.347, 0.442],
     sex_dist = [[0.420, 0.580], [0.395, 0.605], [0.426, 0.574]]
 ) 
+
+
+
+println("End 0_UserConfig")

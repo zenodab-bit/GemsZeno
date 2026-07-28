@@ -21,8 +21,7 @@ function GEMS.sample_contacts!(
     empty!(indivs)
     length(present_individuals) <= 1 && return indivs
 
-    r, p = negbin_params(csm.mean_contacts, csm.std_contacts)
-    n_contacts = min(rand(rng, NegativeBinomial(r, p)), length(present_individuals) - 1)
+    n_contacts = min(sample_n_contacts(rng, csm.mean_contacts, csm.std_contacts), length(present_individuals) - 1)
 
     resize!(indivs, n_contacts)
     for i in 1:n_contacts
@@ -77,11 +76,10 @@ function GEMS.sample_contacts!(
 
     isempty(same_section_individuals) && return Individual[]
 
-    r, p = negbin_params(today_contacts, today_std)
     num_of_contacts = min(
-        rand(rng, NegativeBinomial(r, p)),
-        length(same_section_individuals)
-    )
+    sample_n_contacts(rng, today_contacts, today_std),
+    length(same_section_individuals)
+)
 
     resize!(indivs, num_of_contacts)
     shuffled = shuffle(rng, same_section_individuals)
@@ -89,3 +87,6 @@ function GEMS.sample_contacts!(
         indivs[cnt] = shuffled[cnt]
     end
 end
+
+
+println("End 4_Contacts")

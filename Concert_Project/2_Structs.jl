@@ -7,6 +7,17 @@ function negbin_params(mean, std)
     return r, p
 end
 
+function sample_n_contacts(rng, mean, std)
+    mean <= 0 && return 0
+    variance = std^2
+    if variance <= mean
+        # NegBin requires variance > mean; fall back to Poisson (variance == mean)
+        return rand(rng, Poisson(mean))
+    end
+    r, p = negbin_params(mean, std)
+    return rand(rng, NegativeBinomial(r, p))
+end
+
 function gamma_params(mean, std)
     variance = std^2
     β = variance / mean
@@ -59,3 +70,6 @@ end
     mean_contacts::Float64
     std_contacts::Float64
 end
+
+
+println("End 2_Structs")

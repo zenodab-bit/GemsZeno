@@ -119,30 +119,38 @@ end
 
 function compute_weights(people, candidates, category, event_config)
     age_boundaries = event_config.age_boundaries
+    n_groups = length(age_boundaries) + 1
 
-    weights = Float64[]
-    for idx in candidates
-        age = people.age[idx]
-        sex = people.sex[idx]
-
-        age_idx = age_group_idx(age, age_boundaries)
-
-        # age weight
-        aw = isempty(category.age_weights) ?
-             event_config.age_dist[age_idx] :
-             category.age_weights[age_idx]
-
-        # sex weight
-        sw = isempty(category.sex_weights) ?
-             event_config.sex_dist[age_idx][sex] :
-             category.sex_weights[sex]
-
-        push!(weights, aw * sw)
+    # cache each candidate's (age_group, sex) once
+    gidx = Vector{Int}(undef, length(candidates))
+    for (k, idx) in enumerate(candidates)
+        gidx[k] = age_group_idx(people.age[idx], age_boundaries)
     end
 
-    # normalize
-    total = sum(weights)
-    return total > 0 ? weights ./ total : ones(length(weights)) ./ length(weights)
+    # count candidates per (age_group, sex) cell
+    counts = zeros(Int, n_groups, 2)
+    for (k, idx) in enumerate(candidates)
+        counts[gidx[k], people.sex[idx]] += 1
+    end
+
+    weights = Vector{Float64}(undef, length(candidates))
+    for (k, idx) in enumerate(candidates)
+        g = gidx[k]
+        sex = people.sex[idx]
+
+        aw = isempty(category.age_weights) ?
+             event_config.age_dist[g] :
+             category.age_weights[g]
+
+        sw = isempty(category.sex_weights) ?
+             event_config.sex_dist[g][sex] :
+             category.sex_weights[sex]
+
+        c = counts[g, sex]
+        weights[k] = c > 0 ? (aw * sw) / c : 0.0
+    end
+
+    return weights
 end
 
 
@@ -152,18 +160,20 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
     loyal_pools = Dict{Int,Dict{Int,Int}}()
     core_groups = Dict{Int,Vector{Int}}()
     all_core_members = Set{Int}()
+    attendees = Dict{String,Vector{Int}}()   # NEW: event.id => row indices into `people`
 
     for category in event_config.categories
-        first_event_idx = findfirst(e -> e.category_id == category.id, events)
-        first_event_idx === nothing && continue
-        first_n = events[first_event_idx].n
+        cat_events = filter(e -> e.category_id == category.id, events)
+        isempty(cat_events) && continue
+        min_n = minimum(e.n for e in cat_events)
+
+        n_core_total = round(Int, min_n * category.core)
 
         base_candidates = findall(
             (people.age .>= category.min_age) .&
             (people.age .<= category.max_age)
         )
 
-        n_core_total = round(Int, first_n * category.core)
         core_groups[category.id] = Int[]
 
         # 1. superspreader core
@@ -252,6 +262,8 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             loyal_pools[category.id][idx] = get(loyal_pools[category.id], idx, 0) + 1
         end
 
+        attendees[event.id] = copy(selected)
+
         # assign to people
         for idx in selected
             push!(people.category_ids[idx], Int32(event.category_id))
@@ -262,7 +274,8 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             push!(people.event_dates[idx], Int32(event.date))
         end
     end
+    return attendees
 end
 
-## Superspreaders
+println("End 3_Population")
 

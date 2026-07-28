@@ -1,3 +1,5 @@
+
+
 import Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
 
@@ -17,13 +19,13 @@ n_simulations = 1
 run_validation = true
 
 events = sample_events(event_config, rng)
+sort!(events, by = e -> (e.date, e.category_id, e.draw_id, e.section_id))
 
 println("\n=== Sampled Events ===")
 for e in events
     println("Event $(e.id) ($(e.name)) — date: $(e.date), n: $(e.n), contacts: $(e.mean_contacts)")
 end
 
-config = TOML.parsefile(joinpath(@__DIR__, "config_concert_covid.toml"))
 sim_length = config["Simulation"]["StopCriterion"]["parameters"]["limit"]
 
 for e in events
@@ -33,7 +35,7 @@ for e in events
 end
 
 people, age_groups, sex_levels = prepare_population(event_config, rng)
-assign_events!(people, events, event_config, rng)
+attendees = assign_events!(people, events, event_config, rng)
 
 transmission_func = SettingRate(
     general_rate = general_rate,
@@ -54,7 +56,7 @@ bd = BatchData(b; rd_style = "EssentialResultData")
 event_results = Vector{Any}()
 for rd in runs(bd)
     inf_log = infections(rd)
-    result = analyze_event_population(inf_log, people, events)
+    result = analyze_event_population(inf_log, people, events, attendees)
     push!(event_results, result)
 end
 
@@ -69,3 +71,6 @@ include("7_Analysis.jl")
 if run_validation
     include("8_Validation.jl")
 end
+
+
+println("End 1_Interface")
