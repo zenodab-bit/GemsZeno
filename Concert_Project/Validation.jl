@@ -1,5 +1,30 @@
 # 8_Validation.jl
 # Run after simulation and analysis — requires: people, events, aggregated, event_config
+function population_compartment_counts(inf_log::DataFrame, tick::Int, pop_size::Int)
+    infectious = 0
+    exposed = 0
+    recovered = 0
+    dead = 0
+
+    for row in eachrow(inf_log)
+        row.tick >= tick && continue
+        if row.infectiousness_onset <= tick &&
+           (row.recovery > tick || row.recovery == -1) &&
+           (row.death > tick || row.death == -1)
+            infectious += 1
+        elseif row.recovery != -1 && row.recovery <= tick
+            recovered += 1
+        elseif row.death != -1 && row.death <= tick
+            dead += 1
+        else
+            exposed += 1
+        end
+    end
+
+    susceptible = pop_size - infectious - exposed - recovered - dead
+    return (susceptible=susceptible, infectious=infectious, exposed=exposed,
+        recovered=recovered, dead=dead)
+end
 
 function validate_assignment(people::DataFrame, events::Vector{Event}, event_config::EventConfig, attendees::Dict{String,Vector{Int}})
     println("\n=== Assignment Validation ===")
@@ -17,8 +42,8 @@ function validate_assignment(people::DataFrame, events::Vector{Event}, event_con
     # calculate core sizes per category — FIXED (1.7): min_n matches the 1.5 sizing fix;
     # max_draws was previously × length(category.sections), but a person can attend at
     # most one section per draw (same-day conflict), so the true ceiling is just n_draws.
-    core_sizes = Dict{Int, Int}()
-    max_draws = Dict{Int, Int}()
+    core_sizes = Dict{Int,Int}()
+    max_draws = Dict{Int,Int}()
     for category in event_config.categories
         cat_events = filter(e -> e.category_id == category.id, events)
         isempty(cat_events) && continue
@@ -130,13 +155,12 @@ function validate_demographics(people::DataFrame, events::Vector{Event}, event_c
     end
 end
 
-function validate_epidemic_state(aggregated, events, bd, event_config, people)
+function validate_epidemic_state(aggregated, events, bd, event_config, people, attendees)
     println("\n=== Epidemic State Validation ===")
 
     pop_size = nrow(people)
     unique_dates = unique(e.date for e in events)
 
-    # one prevalence snapshot per (run, date), then averaged across runs
     counts_per_date = Dict(date => NamedTuple[] for date in unique_dates)
     for rd in runs(bd)
         inf_log = infections(rd)
@@ -147,48 +171,51 @@ function validate_epidemic_state(aggregated, events, bd, event_config, people)
 
     pop_counts = Dict(
         date => (
-            infectious = mean(c.infectious for c in cs),
-            exposed    = mean(c.exposed    for c in cs),
-            recovered  = mean(c.recovered  for c in cs),
-            dead       = mean(c.dead       for c in cs),
+            infectious=mean(c.infectious for c in cs),
+            exposed=mean(c.exposed for c in cs),
+            recovered=mean(c.recovered for c in cs),
+            dead=mean(c.dead for c in cs),
         )
         for (date, cs) in counts_per_date
     )
 
     function print_validation_row(label, expected, observed, std)
-        z = std > 0 ? (observed - expected) / std : 0.0
-        println("  $(rpad(label, 20)) $(rpad(fmt(expected), 12)) $(rpad(fmt(observed), 12)) $(fmt(z))")
+        z_str = std > 0 ? fmt((observed - expected) / std) : "n/a"
+        println("  $(rpad(label, 20)) $(rpad(fmt(expected), 12)) $(rpad(fmt(observed), 12)) $z_str")
     end
 
     for event in events
         metrics = aggregated[event.id]
         pc = pop_counts[event.date]
 
-        expected_infectious  = (pc.infectious / pop_size) * event.n
-        expected_exposed     = (pc.exposed    / pop_size) * event.n
-        expected_recovered   = (pc.recovered  / pop_size) * event.n
-        expected_dead        = (pc.dead       / pop_size) * event.n
+        expected_infectious = (pc.infectious / pop_size) * event.n
+        expected_exposed = (pc.exposed / pop_size) * event.n
+        expected_recovered = (pc.recovered / pop_size) * event.n
+        expected_dead = (pc.dead / pop_size) * event.n
         expected_susceptible = event.n - expected_infectious - expected_exposed -
                                expected_recovered - expected_dead
 
-        n_section    = event.n
-        exponent     = n_section > 1 ?
-                       metrics[:infectious].mean * event.mean_contacts *
-                       event_config.transmission_rate / (n_section - 1) : 0.0
-        p_infected   = 1 - exp(-exponent)
+        n_section = event.n
+        # FIXED (1.9): actual mean transmission_prob among this event's attendees,
+        # replacing the flat non-superspreader-only event_config.transmission_rate.
+        event_transmission_rate = mean(people.transmission_prob[idx] for idx in attendees[event.id])
+        exponent = n_section > 1 ?
+                   metrics[:infectious].mean * event.mean_contacts *
+                   event_transmission_rate / (n_section - 1) : 0.0
+        p_infected = 1 - exp(-exponent)
         expected_infected = metrics[:susceptible].mean * p_infected
-        std_infected      = sqrt(metrics[:susceptible].mean * p_infected * (1 - p_infected))
+        std_infected = sqrt(metrics[:susceptible].mean * p_infected * (1 - p_infected))
 
         println("\nEvent $(event.id) — Day $(event.date) — n=$(event.n)")
         println("  $(rpad("", 20)) $(rpad("Expected", 12)) $(rpad("Observed", 12)) Z-score")
         println("  " * "-"^55)
-        print_validation_row("Susceptible",  expected_susceptible,  metrics[:susceptible].mean,  metrics[:susceptible].std)
-        print_validation_row("Infectious",   expected_infectious,   metrics[:infectious].mean,   metrics[:infectious].std)
-        print_validation_row("Exposed",      expected_exposed,      metrics[:exposed].mean,      metrics[:exposed].std)
-        print_validation_row("Recovered",    expected_recovered,    metrics[:recovered].mean,    metrics[:recovered].std)
-        print_validation_row("Dead",         expected_dead,         metrics[:dead].mean,          metrics[:dead].std)
+        print_validation_row("Susceptible", expected_susceptible, metrics[:susceptible].mean, metrics[:susceptible].std)
+        print_validation_row("Infectious", expected_infectious, metrics[:infectious].mean, metrics[:infectious].std)
+        print_validation_row("Exposed", expected_exposed, metrics[:exposed].mean, metrics[:exposed].std)
+        print_validation_row("Recovered", expected_recovered, metrics[:recovered].mean, metrics[:recovered].std)
+        print_validation_row("Dead", expected_dead, metrics[:dead].mean, metrics[:dead].std)
         println("  " * "-"^55)
-        print_validation_row("Infected",     expected_infected,     metrics[:infected_at_event].mean, std_infected)
+        print_validation_row("Infected", expected_infected, metrics[:infected_at_event].mean, std_infected)
     end
 end
 
@@ -199,6 +226,6 @@ end
 validate_assignment(people, events, event_config, attendees)
 validate_results(aggregated, events)
 validate_demographics(people, events, event_config, attendees)
-validate_epidemic_state(aggregated, events, bd, event_config, people)
+validate_epidemic_state(aggregated, events, bd, event_config, people, attendees)
 
-println("End 8_Validation")
+println("End Validation")

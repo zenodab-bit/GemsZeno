@@ -1,6 +1,3 @@
-using StatsPlots, Dates
-
-ENV["GKSwstype"] = "100"  # headless mode for server
 
 # === Helper functions ===
 
@@ -25,11 +22,20 @@ function print_metric_row(io, label, m)
 end
 
 function add_event_vlines!(p, events)
+    seen_dates = Set{Int}()
     for event in events
+        event.date in seen_dates && continue
+        push!(seen_dates, event.date)
+
+        same_date_ids = [e.id for e in events if e.date == event.date]
+        label = length(same_date_ids) > 1 ?
+                "Events $(join(same_date_ids, ", ")) (day $(event.date))" :
+                "Event $(event.id) (day $(event.date))"
+
         vline!(p, [event.date],
             linestyle=:dash,
             color=:black,
-            label="Event $(event.id) (day $(event.date))",
+            label=label,
             linewidth=1.5)
     end
 end
@@ -89,7 +95,7 @@ function plot_epidemic_overview(bd, events, run_folder)
     add_event_vlines!(p3, events)
 
     p_overview = plot(p1, p2, p3, layout=(3, 1), size=(800, 900), dpi=300,
-         legend=:outertopright)
+        legend=:outertopright)
     savefig(p_overview, "$run_folder/epidemic_overview.png")
     println("Saved: epidemic_overview")
 end
@@ -102,7 +108,6 @@ function plot_cases_by_setting(bd, events, run_folder)
         'o' => :purple,
         'g' => :blue,
         'm' => :brown,
-        '?' => :gray
     )
     setting_labels = Dict(
         'h' => "Household",
@@ -110,7 +115,6 @@ function plot_cases_by_setting(bd, events, run_folder)
         'o' => "Office",
         'g' => "GlobalSetting",
         'm' => "Municipality",
-        '?' => "Initial"
     )
 
     all_setting_cases = Dict{Char,Vector{Vector{Float64}}}()
@@ -134,7 +138,7 @@ function plot_cases_by_setting(bd, events, run_folder)
     end
 
     p = plot(title="Cases by Setting", xlabel="Tick", ylabel="Daily Cases", dpi=300,
-         legend=:outertopright)
+        legend=:outerright, size=(1400, 600))
     for (s, series_list) in all_setting_cases
         isempty(series_list) && continue
         mat = hcat(series_list...)
@@ -165,7 +169,7 @@ function plot_event_seir(aggregated, events, run_folder)
 
         p = bar(string.(fields), values,
             color=colors,
-            title = "SEIR State — $(event.name) Day $(event.date)",
+            title="SEIR State — $(event.name) Day $(event.date)",
             xlabel="Compartment",
             ylabel="Count",
             legend=false,
@@ -181,10 +185,20 @@ function plot_infected_boxplot(event_results, events, run_folder)
     values_per_event = [[r[e.id].infected_at_event for r in event_results] for e in events]
 
     p = plot(title="Infected at Event", xlabel="Event", ylabel="Infected", dpi=300,
-         legend=:outertopright)
-    for (i, vals) in enumerate(values_per_event)
-        boxplot!(p, [event_ids[i]], vals, label=event_ids[i], legend=true)
+        legend=:outertopright)
+
+    if length(event_results) > 1
+        for (i, vals) in enumerate(values_per_event)
+            boxplot!(p, [event_ids[i]], vals, label=event_ids[i], legend=true)
+        end
+    else
+        # n_simulations == 1: no distribution to show a boxplot of — plot the single
+        # observed value per event as a bar instead, so the chart type matches what's
+        # actually being shown (a single count, not a spread).
+        single_vals = [vals[1] for vals in values_per_event]
+        bar!(p, event_ids, single_vals, label=false)
     end
+
     savefig(p, "$run_folder/infected_boxplot.png")
     println("Saved: infected_boxplot")
 end
@@ -198,4 +212,4 @@ plot_event_seir(aggregated, events, run_folder)
 plot_infected_boxplot(event_results, events, run_folder)
 
 println("\nAnalysis complete. Results saved to $run_folder")
-println("7_Analysis")
+println("Analysis")

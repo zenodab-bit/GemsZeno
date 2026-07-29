@@ -60,6 +60,6 @@ event_config = EventConfig(
     sex_dist = [[0.420, 0.580], [0.395, 0.605], [0.426, 0.574]]
 ) 
 
+validate_config(event_config) 
 
-
-println("End 0_UserConfig")
+println("End 1_UserConfig")

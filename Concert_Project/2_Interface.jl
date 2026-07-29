@@ -1,18 +1,19 @@
-
+ENV["GKSwstype"] = "100"
 
 import Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
 
 using GEMS, Parameters, DataFrames, Distributions, CSV,
     CategoricalArrays, JLD2, Random, StatsBase, Plots, StatsPlots, Dates, TOML
+using Random: Xoshiro, shuffle
 
 # === Includes ===
-include("2_Structs.jl")
-include("0_UserConfig.jl")
-include("3_Population.jl")
-include("4_Contacts.jl")
-include("5_Transmission.jl")
-include("6_Helpers.jl")
+include("Structs.jl")
+include("1_UserConfig.jl")
+include("Population.jl")
+include("Contacts.jl")
+include("Transmission.jl")
+include("Helpers.jl")
 
 # === Run ===
 n_simulations = 1
@@ -47,13 +48,13 @@ b = Batch(
     configfile = joinpath(@__DIR__, "config_concert_covid.toml"),
     population = people,
     settingsfile = joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"),
-    ind_extension = [:category_ids, :event_ids, :section_ids, :mean_event_contacts, :std_event_contacts, :event_dates, :transmission_prob],
+    ind_extension = [:category_ids, :draw_ids, :section_ids, :mean_event_contacts, :std_event_contacts, :event_dates, :transmission_prob],
     transmission_function = transmission_func,
     label = "MultiEvent simulation"
 )
 bd = BatchData(b; rd_style = "EssentialResultData")
 
-event_results = Vector{Any}()
+event_results = Vector{Dict{String,EventCounts}}()
 for rd in runs(bd)
     inf_log = infections(rd)
     result = analyze_event_population(inf_log, people, events, attendees)
@@ -73,4 +74,4 @@ if run_validation
 end
 
 
-println("End 1_Interface")
+println("End 2_Interface")

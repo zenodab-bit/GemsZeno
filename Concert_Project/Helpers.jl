@@ -1,21 +1,12 @@
+const EventCounts = @NamedTuple{susceptible::Int, infectious::Int, exposed::Int, recovered::Int, dead::Int, same_day_other::Int, infected_at_event::Int}
+const EventStat = @NamedTuple{mean::Float64, std::Float64, min::Float64, p25::Float64, median::Float64, p75::Float64, max::Float64}
+
 function analyze_event_population(inf_log::DataFrame, people::DataFrame, events::Vector{Event}, attendees::Dict{String,Vector{Int}})
-    results = Dict{String,Any}()
+    results = Dict{String,EventCounts}()
 
     for event in events
+        # get individual ids for this event from people DataFrame
         section_ids = Set{Int32}(people.id[idx] for idx in attendees[event.id])
-
-        # categorize people from infection log
-        infected_before_ids = Set{Int32}()
-        for row in eachrow(people)
-            for i in eachindex(row.category_ids)      # was row.event_ids
-                if row.category_ids[i] == event.category_id &&
-                   row.event_ids[i] == event.draw_id &&      # new check
-                   row.section_ids[i] == event.section_id &&
-                   row.event_dates[i] == event.date
-                    push!(section_ids, row.id)
-                end
-            end
-        end
 
         # categorize people from infection log
         infected_before_ids = Set{Int32}()
@@ -59,7 +50,7 @@ function analyze_event_population(inf_log::DataFrame, people::DataFrame, events:
         same_day_other = length(intersect(same_day_other_ids, section_ids))
         infected_at_event = length(intersect(event_infected_ids, section_ids))
 
-        event_data = (
+        event_data::EventCounts = (
             susceptible=susceptible,
             infectious=infectious,
             exposed=exposed,
@@ -76,17 +67,17 @@ function analyze_event_population(inf_log::DataFrame, people::DataFrame, events:
 end
 
 
-function aggregate_event_results(results_vector::Vector{Any})
-    aggregated = Dict{String,Any}()
+function aggregate_event_results(results_vector::Vector{Dict{String,EventCounts}})
+    aggregated = Dict{String,Dict{Symbol,EventStat}}()
     first_result = results_vector[1]
 
     for (event_id, _) in first_result
         fields = keys(results_vector[1][event_id])
-        aggregated[event_id] = Dict{Symbol,NamedTuple}()
+        aggregated[event_id] = Dict{Symbol,EventStat}()
         for field in fields
             values = Float64[getfield(results_vector[r][event_id], field)
                              for r in 1:length(results_vector)]
-            aggregated[event_id][field] = (
+            stat::EventStat = (
                 mean=mean(values),
                 std=length(values) > 1 ? std(values) : 0.0,
                 min=minimum(values),
@@ -95,36 +86,13 @@ function aggregate_event_results(results_vector::Vector{Any})
                 p75=quantile(values, 0.75),
                 max=maximum(values)
             )
+            aggregated[event_id][field] = stat
         end
     end
 
     return aggregated
 end
 
-function population_compartment_counts(inf_log::DataFrame, tick::Int, pop_size::Int)
-    infectious = 0
-    exposed    = 0
-    recovered  = 0
-    dead       = 0
 
-    for row in eachrow(inf_log)
-        row.tick >= tick && continue
-        if row.infectiousness_onset <= tick &&
-           (row.recovery > tick || row.recovery == -1) &&
-           (row.death > tick || row.death == -1)
-            infectious += 1
-        elseif row.recovery != -1 && row.recovery <= tick
-            recovered += 1
-        elseif row.death != -1 && row.death <= tick
-            dead += 1
-        else
-            exposed += 1
-        end
-    end
 
-    susceptible = pop_size - infectious - exposed - recovered - dead
-    return (susceptible=susceptible, infectious=infectious, exposed=exposed,
-            recovered=recovered, dead=dead)
-end
-
-println("End 6_Helpers")
+println("End Helpers")

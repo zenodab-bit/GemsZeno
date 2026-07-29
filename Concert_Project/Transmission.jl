@@ -37,7 +37,7 @@ function GEMS.transmission_probability(
 
     # must be same event and same section
     if infecter.category_ids[idx_a] == infected.category_ids[idx_b] &&
-       infecter.event_ids[idx_a] == infected.event_ids[idx_b] &&
+       infecter.draw_ids[idx_a] == infected.draw_ids[idx_b] &&
        infecter.section_ids[idx_a] == infected.section_ids[idx_b]
         return infecter.transmission_prob
     end
@@ -47,4 +47,4 @@ end
 
 
 
-println("End 5_Transmission")
+println("End Transmission")
