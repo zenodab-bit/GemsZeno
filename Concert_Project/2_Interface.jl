@@ -67,11 +67,11 @@ run_folder = "Results/run_$(n_simulations)sims_$(Dates.format(Dates.now(), "yyyy
 mkpath(run_folder)
 
 println("\nSimulation complete.")
-include("7_Analysis.jl")
+include("Analysis.jl")
 
 if run_validation
-    include("8_Validation.jl")
+    include("Validation.jl")
 end
 
 
-println("End 2_Interface")
+println("End Interface")
