@@ -1,17 +1,26 @@
-## === Helper functions ===
+# ===========================================================================
+# 3_Population.jl
+#
+# Turns an EventConfig into concrete events and a simulation-ready
+# population, and assigns people to those events. Three pieces, used
+# together by 2_Interface.jl in this order:
+#   1. sample_events(event_config, rng)       - returns Vector{Event}
+#   2. prepare_population(event_config, rng)  - returns people DataFrame + labels
+#   3. assign_events!(people, events, ...)    - returns attendees Dict,
+#                                                mutates `people` in place
 
-age_group_idx(age, age_boundaries) = searchsortedfirst(age_boundaries, age)
-
-function age_group_label_from_idx(idx::Int, age_boundaries)
-    idx > length(age_boundaries) && return ">$(age_boundaries[end])"
-    return "<=$(age_boundaries[idx])"
-end
-
-age_group_label(age, age_boundaries) = age_group_label_from_idx(age_group_idx(age, age_boundaries), age_boundaries)
+# ===========================================================================
 
 
 ## === Sample Events ===
 
+# Turns an EventConfig into concrete Event objects: for each Category,
+# draws n_draws distinct dates within its date_range, and for each date
+# creates one Event per Section (sections of one draw share that date).
+#
+# Date uniqueness is tracked per category, not globally, so two different
+# categories can coincidentally land on the same date;
+# the same-day conflict check in assign_events! handles it.
 function sample_events(event_config::EventConfig, rng)
     events = Vector{Event}()
 
@@ -34,6 +43,7 @@ function sample_events(event_config::EventConfig, rng)
                 n = rand(rng, section.n_range[1]:section.n_range[2])
                 id = "$(category.id)_$(draw)_$(section.id)"
 
+                # Build a readable name from whatever parts apply; falls back to id.
                 parts = String[]
                 if !isempty(category.name)
                     push!(parts, category.name)
@@ -71,6 +81,17 @@ end
 
 ## === Prepare Population ===
 
+# Loads the base population and adds every column the rest of the project
+# needs: age-group labels, empty per-person event-attendance records,
+# superspreader status, and each  person's transmission_prob.
+#
+# Reads general_rate, std_rate, superspreader_prob, superspreader_rate,
+# superspreader_std from global scope (set in 1_UserConfig.jl).
+#
+# The attendance columns added here (category_ids, draw_ids, section_ids,
+# mean_event_contacts, std_event_contacts, event_dates) are also listed in
+# 2_Interface.jl's ind_extension, which is how GEMS carries them onto its
+# own Individual objects for 4_Contacts.jl and 5_Transmission.jl to read.
 function prepare_population(event_config::EventConfig, rng)
     people = JLD2.load(joinpath(@__DIR__, "Datastorage", "people_Saalekreis.jld2"))["data"]
 
@@ -92,6 +113,7 @@ function prepare_population(event_config::EventConfig, rng)
     α_super, β_super = gamma_params(superspreader_rate, superspreader_std)
 
     people.is_superspreader = [rand(rng) < superspreader_prob for _ in 1:nrow(people)]
+    # Gamma is unbounded above, so clamp to 1.0 since this is used as a probability.
     people.transmission_prob = Float64[
         min(1.0, people.is_superspreader[i] ?
                  rand(rng, Gamma(α_super, β_super)) :
@@ -105,6 +127,18 @@ end
 
 ## === Compute Weights ===
 
+# Computes per-candidate sampling weights for demographic-targeted event
+# selection, used by assign_events! for both core-group and random-pool draws.
+#
+# Weights are per-capita: each candidate's weight is the target share
+# (age_weight times sex_weight) divided by how many candidates share their
+# (age_group, sex) cell. This keeps a cell's total pull equal to its
+# intended target share regardless of how many candidates happen to fall
+# into it — without dividing, a larger candidate pool would pull more than
+# its intended share just by having more people in it.
+#
+# Cells with zero candidates get weight 0; if their target share is
+# nonzero, sampling redistributes it proportionally across the other cells.
 function compute_weights(people, candidates, category, event_config)
     age_boundaries = event_config.age_boundaries
     n_groups = length(age_boundaries) + 1
@@ -127,6 +161,7 @@ function compute_weights(people, candidates, category, event_config)
         g = gidx[k]
         sex = sexes[idx]
 
+        # category age_weights/sex_weights override EventConfig.age_dist/sex_dist if given
         aw = isempty(category.age_weights) ?
              event_config.age_dist[g] :
              category.age_weights[g]
@@ -145,6 +180,21 @@ end
 
 ## === Assign Events ===
 
+# Assigns people to every event, mutating `people`'s attendance columns and
+# returning attendees::Dict{String,Vector{Int}} (event id to attendee
+# row-indices)
+#
+# Requires `events` to already be sorted chronologically (2_Interface.jl
+# does this before calling). Loyalty tracking and the same-day conflict
+# check both depend on events being processed in calendar order; passing
+# unsorted events won't error, it will silently produce wrong loyalty
+# behavior.
+#
+# Two phases: first, build each category's core group once, up front (a
+# person can be core for at most one category). Then, for each event in
+# order, add its core members (skipping same-day conflicts), and fill the
+# rest from a demographically-weighted random draw with loyalty-based
+# reweighting for repeat attendees.
 function assign_events!(people::DataFrame, events::Vector{Event}, event_config::EventConfig, rng)
     loyal_pools = Dict{Int,Dict{Int,Int}}()
     core_groups = Dict{Int,Vector{Int}}()
@@ -152,25 +202,26 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
     attendees = Dict{String,Vector{Int}}()
     base_candidates_by_category = Dict{Int,Vector{Int}}()
 
-    event_dates_col = people.event_dates   # hoisted once; still the same underlying mutable column,
-    # so later `push!`s to it stay visible on every later lookup
+    event_dates_col = people.event_dates   # hoisted; still the same mutable column, so later pushes stay visible
 
+    # --- PHASE 1: build each category's core group once ---
     for category in event_config.categories
         cat_events = filter(e -> e.category_id == category.id, events)
         isempty(cat_events) && continue
         min_n = minimum(e.n for e in cat_events)
 
+        # sized off the smallest event so core can never exceed any event's capacity
         n_core_total = round(Int, min_n * category.core)
 
         base_candidates = findall(
             (people.age .>= category.min_age) .&
             (people.age .<= category.max_age)
         )
-        base_candidates_by_category[category.id] = base_candidates
+        base_candidates_by_category[category.id] = base_candidates   # cached, reused per event below
 
         core_groups[category.id] = Int[]
 
-        # 1. superspreader core
+        # 1. superspreader core, placed first so it claims the min_superspreaders guarantee
         if category.min_superspreaders > 0
             available_supers = filter(idx ->
                     people.is_superspreader[idx] &&
@@ -186,7 +237,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             end
         end
 
-        # 2. regular core
+        # 2. regular core fills the rest of n_core_total via the same demographic weighting
         n_regular_core = max(0, n_core_total - length(core_groups[category.id]))
         if n_regular_core > 0
             core_so_far = Set(core_groups[category.id])
@@ -203,6 +254,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
         union!(all_core_members, core_groups[category.id])
     end
 
+    # --- PHASE 2: assign attendees event by event, in the given (chronological) order ---
     for event in events
         category = event_config.categories[findfirst(c -> c.id == event.category_id, event_config.categories)]
 
@@ -210,7 +262,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
 
         selected = Int[]
 
-        # 1. add core group (filter same-day conflicts)
+        # core group, minus anyone already booked elsewhere this exact day
         if haskey(core_groups, category.id)
             available_core = filter(idx ->
                     event.date ∉ event_dates_col[idx],
@@ -218,7 +270,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             append!(selected, available_core)
         end
 
-        # 2. random pool with unified loyalty weights
+        # random pool with loyalty-weighted demographic sampling
         n_remaining = event.n - length(selected)
         selected_set = Set(selected)
         remaining = filter(idx ->
@@ -228,6 +280,8 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
 
         remaining_weights = compute_weights(people, remaining, category, event_config)
 
+        # loyalty: weight *= (1+loyalty)^n_prev, exponential — only applies to the
+        # random pool, core members already attend unconditionally
         if category.loyalty != 0.0 && haskey(loyal_pools, category.id)
             pool = loyal_pools[category.id]
             for (i, idx) in enumerate(remaining)
@@ -246,6 +300,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             append!(selected, new_selected)
         end
 
+        # update loyalty pool after selection, ready for this category's next event
         if !haskey(loyal_pools, category.id)
             loyal_pools[category.id] = Dict{Int,Int}()
         end
@@ -255,6 +310,7 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
 
         attendees[event.id] = copy(selected)
 
+        # record this event on every attendee's own history
         for idx in selected
             push!(people.category_ids[idx], Int32(event.category_id))
             push!(people.draw_ids[idx], Int32(event.draw_id))

@@ -1,5 +1,17 @@
-# 8_Validation.jl
-# Run after simulation and analysis — requires: people, events, aggregated, event_config
+# ===========================================================================
+# 7_Validation.jl
+#
+# Auto-run at the end of 2_Interface.jl, after 6_Analysis.jl, if
+# run_validation is true. Four independent checks against the finished
+# simulation: did assignment hit its targets, do compartment totals add
+# up, does demographics match the config, and does the epidemic state
+# roughly match what the population-wide infection log implies.
+# ===========================================================================
+
+# Population-wide SEIR compartment counts as of `tick`, computed directly
+# from the infection log (not from tick_cases, which turned out to report
+# same-day incidence rather than cumulative prevalence). Used by
+# validate_epidemic_state as the population-wide baseline.
 function population_compartment_counts(inf_log::DataFrame, tick::Int, pop_size::Int)
     infectious = 0
     exposed = 0
@@ -26,6 +38,9 @@ function population_compartment_counts(inf_log::DataFrame, tick::Int, pop_size::
         recovered=recovered, dead=dead)
 end
 
+# Prints attendance distribution (who attended how many events, with a
+# core/non-core breakdown where it applies) and confirms each event hit
+# its target attendee count.
 function validate_assignment(people::DataFrame, events::Vector{Event}, event_config::EventConfig, attendees::Dict{String,Vector{Int}})
     println("\n=== Assignment Validation ===")
 
@@ -39,9 +54,8 @@ function validate_assignment(people::DataFrame, events::Vector{Event}, event_con
     total_assigned = length(attendance_per_person)
     multi_assigned = count(>(1), values(attendance_per_person))
 
-    # calculate core sizes per category — FIXED (1.7): min_n matches the 1.5 sizing fix;
-    # max_draws was previously × length(category.sections), but a person can attend at
-    # most one section per draw (same-day conflict), so the true ceiling is just n_draws.
+    # a person can attend at most one section per draw (same-day conflict), so
+    # the true max attendance for a category is n_draws, not n_draws * sections
     core_sizes = Dict{Int,Int}()
     max_draws = Dict{Int,Int}()
     for category in event_config.categories
@@ -79,8 +93,8 @@ function validate_assignment(people::DataFrame, events::Vector{Event}, event_con
 end
 
 
-
-
+# Checks, per event: infected_at_event never exceeds the event size, and
+# every compartment sums back to the event size (within rounding).
 function validate_results(aggregated::Dict, events::Vector{Event})
     println("\n=== Results Validation ===")
 
@@ -108,7 +122,8 @@ function validate_results(aggregated::Dict, events::Vector{Event})
 end
 
 
-
+# Compares each event's actual attendee age/sex distribution against the
+# category's (or, if unset, the population-wide) target.
 function validate_demographics(people::DataFrame, events::Vector{Event}, event_config::EventConfig, attendees::Dict{String,Vector{Int}})
     println("\n=== Demographic Validation ===")
 
@@ -155,6 +170,15 @@ function validate_demographics(people::DataFrame, events::Vector{Event}, event_c
     end
 end
 
+
+# Compares each event's actual compartment counts against an analytically
+# expected value (population-wide prevalence scaled to event size, plus a
+# transmission-probability estimate for infected_at_event), as a Z-score.
+# The transmission rate used is the mean transmission_prob across this
+# event's actual attendees, not a flat population-wide constant — this
+# matters when categories concentrate superspreaders (via min_superspreaders
+# or core targeting), since a flat rate would systematically underestimate
+# expected infections for those events.
 function validate_epidemic_state(aggregated, events, bd, event_config, people, attendees)
     println("\n=== Epidemic State Validation ===")
 
@@ -179,6 +203,9 @@ function validate_epidemic_state(aggregated, events, bd, event_config, people, a
         for (date, cs) in counts_per_date
     )
 
+    # z_str is "n/a" rather than a Z-score of 0 when std == 0 (e.g. with a
+    # single simulation replicate), since 0 would misleadingly look like a
+    # perfect match rather than "no variance to compare against."
     function print_validation_row(label, expected, observed, std)
         z_str = std > 0 ? fmt((observed - expected) / std) : "n/a"
         println("  $(rpad(label, 20)) $(rpad(fmt(expected), 12)) $(rpad(fmt(observed), 12)) $z_str")
@@ -196,8 +223,6 @@ function validate_epidemic_state(aggregated, events, bd, event_config, people, a
                                expected_recovered - expected_dead
 
         n_section = event.n
-        # FIXED (1.9): actual mean transmission_prob among this event's attendees,
-        # replacing the flat non-superspreader-only event_config.transmission_rate.
         event_transmission_rate = mean(people.transmission_prob[idx] for idx in attendees[event.id])
         exponent = n_section > 1 ?
                    metrics[:infectious].mean * event.mean_contacts *
@@ -219,7 +244,6 @@ function validate_epidemic_state(aggregated, events, bd, event_config, people, a
     end
 end
 
-# === Auto-run validation ===
 
 # === Auto-run validation ===
 

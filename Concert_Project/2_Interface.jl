@@ -8,12 +8,11 @@ using GEMS, Parameters, DataFrames, Distributions, CSV,
 using Random: Xoshiro, shuffle
 
 # === Includes ===
-include("Structs.jl")
+include("0_Helpers.jl")
 include("1_UserConfig.jl")
-include("Population.jl")
-include("Contacts.jl")
-include("Transmission.jl")
-include("Helpers.jl")
+include("3_Population.jl")
+include("4_Contacts.jl")
+include("5_Transmission.jl")
 
 # === Run ===
 n_simulations = 1
@@ -67,11 +66,11 @@ run_folder = "Results/run_$(n_simulations)sims_$(Dates.format(Dates.now(), "yyyy
 mkpath(run_folder)
 
 println("\nSimulation complete.")
-include("Analysis.jl")
+include("6_Analysis.jl")
 
 if run_validation
-    include("Validation.jl")
+    include("7_Validation.jl")
 end
 
 
-println("End Interface")
+println("End 2_Interface")

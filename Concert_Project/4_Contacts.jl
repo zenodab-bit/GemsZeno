@@ -1,3 +1,12 @@
+# ===========================================================================
+# 4_Contacts.jl
+#
+# Extends GEMS's sample_contacts! for two ContactSamplingMethods, dispatched
+# by the "type" set in each setting's TOML config: NegBinContacts for
+# ordinary settings (household, office, etc.), EventContacts specifically
+# for GlobalSetting (mass gatherings).
+# ===========================================================================
+
 import GEMS: sample_contacts!
 
 
@@ -8,6 +17,8 @@ import GEMS: sample_contacts!
     std_contacts::Float64
 end
 
+# Draws n contacts (via sample_n_contacts) from present_individuals,
+# excluding ego, using distinct offsets so no contact repeats and none is ego.
 function GEMS.sample_contacts!(
     indivs::Vector{Individual},
     csm::NegBinContacts,
@@ -39,12 +50,19 @@ end
 
 # === Event Contact Sampling ===
 
+# rosters is rebuilt once per tick (see below), shared across every call
+# that tick rather than rescanning the whole population per call.
 @with_kw mutable struct EventContacts <: GEMS.ContactSamplingMethod
     contactparameter::Float64 = 0.0
     cached_tick::Int16 = Int16(-1)
     rosters::Dict{Tuple{Int32,Int32,Int32},Vector{Individual}} = Dict{Tuple{Int32,Int32,Int32},Vector{Individual}}()
 end
 
+# Finds ego's event (if any) for this tick, then draws contacts from others
+# in the same (category, draw, section). Builds/caches a roster of every
+# attendee keyed by (category_id, draw_id, section_id) the first time this
+# tick is seen, so repeated calls the same day reuse it instead of
+# rescanning present_individuals each time.
 function GEMS.sample_contacts!(
     indivs::Vector{Individual},
     event_contacts::EventContacts,
@@ -58,7 +76,6 @@ function GEMS.sample_contacts!(
     empty!(indivs)
     ego = present_individuals[individual_index]
 
-    # rebuild the roster once per tick — shared across every ego that calls this on the same day
     if event_contacts.cached_tick != tick
         empty!(event_contacts.rosters)
         for x in present_individuals

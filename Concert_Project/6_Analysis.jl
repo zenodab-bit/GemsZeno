@@ -1,48 +1,22 @@
-
-# === Helper functions ===
-
-function fmt(x; digits=2)
-    round(x, digits=digits)
-end
-
-function print_table_header(io)
-    println(io, rpad("Metric", 20), " | ",
-        rpad("Mean", 9), " | ", rpad("Std", 9), " | ",
-        rpad("Min", 9), " | ", rpad("P25", 9), " | ",
-        rpad("Median", 9), " | ", rpad("P75", 9), " | ", "Max")
-    println(io, "-"^100)
-end
-
-function print_metric_row(io, label, m)
-    println(io, rpad(label, 20), " | ",
-        rpad(fmt(m.mean), 9), " | ", rpad(fmt(m.std), 9), " | ",
-        rpad(fmt(m.min), 9), " | ", rpad(fmt(m.p25), 9), " | ",
-        rpad(fmt(m.median), 9), " | ", rpad(fmt(m.p75), 9), " | ",
-        fmt(m.max))
-end
-
-function add_event_vlines!(p, events)
-    seen_dates = Set{Int}()
-    for event in events
-        event.date in seen_dates && continue
-        push!(seen_dates, event.date)
-
-        same_date_ids = [e.id for e in events if e.date == event.date]
-        label = length(same_date_ids) > 1 ?
-                "Events $(join(same_date_ids, ", ")) (day $(event.date))" :
-                "Event $(event.id) (day $(event.date))"
-
-        vline!(p, [event.date],
-            linestyle=:dash,
-            color=:black,
-            label=label,
-            linewidth=1.5)
-    end
-end
+# ===========================================================================
+# 6_Analysis.jl
+#
+# Auto-run at the end of 2_Interface.jl (after a successful simulation) to
+# write text metrics and generate every plot. Not meant to be included on
+# its own — the calls at the bottom of this file (print_metrics,
+# plot_epidemic_overview, etc.) execute immediately using variables
+# (aggregated, events, bd, run_folder, event_results, n_simulations)
+# assumed to already exist in the calling scope.
+#
+# fmt, print_table_header, print_metric_row, and add_event_vlines!, used
+# throughout this file, are defined in 0_Helpers.jl (included first).
+# ===========================================================================
 
 
 # === Text metrics ===
 
+# Writes per-event compartment metrics and global epidemic stats to
+# multievent_analysis.txt in run_folder.
 function print_metrics(aggregated, events, bd, run_folder)
     filename = "$run_folder/multievent_analysis.txt"
 
@@ -84,6 +58,8 @@ end
 
 # === Plots ===
 
+# Three-panel plot (tick cases, cumulative cases, effective R) with event
+# dates marked, saved to epidemic_overview.png.
 function plot_epidemic_overview(bd, events, run_folder)
     p1 = gemsplot(bd, type=:TickCases)
     add_event_vlines!(p1, events)
@@ -101,6 +77,9 @@ function plot_epidemic_overview(bd, events, run_folder)
 end
 
 
+# Daily case counts by setting type (mean with min/max ribbon across
+# replicates), saved to cases_by_setting.png. Excludes the 'Initial'
+# setting_type ('?') — a single-point seeding spike at tick 0, not a trend.
 function plot_cases_by_setting(bd, events, run_folder)
     setting_colors = Dict(
         'h' => :orange,
@@ -159,6 +138,9 @@ function plot_cases_by_setting(bd, events, run_folder)
 end
 
 
+# One SEIR-compartment bar chart per event, saved as seir_<event.name>.png.
+# Filenames use event.name, not the guaranteed-unique event.id — category
+# and section names need to stay distinct for this not to collide.
 function plot_event_seir(aggregated, events, run_folder)
     fields = [:susceptible, :infectious, :exposed, :recovered, :dead]
     colors = [:green, :red, :blue, :gray, :black]
@@ -180,6 +162,10 @@ function plot_event_seir(aggregated, events, run_folder)
 end
 
 
+# Boxplot of infected-at-event across replicates, one box per event, saved
+# to infected_boxplot.png. Falls back to a plain bar chart with a single
+# value per event when there's only one replicate (n_simulations == 1),
+# since a boxplot needs a distribution to be meaningful.
 function plot_infected_boxplot(event_results, events, run_folder)
     event_ids = [e.id for e in events]
     values_per_event = [[r[e.id].infected_at_event for r in event_results] for e in events]
@@ -192,9 +178,6 @@ function plot_infected_boxplot(event_results, events, run_folder)
             boxplot!(p, [event_ids[i]], vals, label=event_ids[i], legend=true)
         end
     else
-        # n_simulations == 1: no distribution to show a boxplot of — plot the single
-        # observed value per event as a bar instead, so the chart type matches what's
-        # actually being shown (a single count, not a spread).
         single_vals = [vals[1] for vals in values_per_event]
         bar!(p, event_ids, single_vals, label=false)
     end
