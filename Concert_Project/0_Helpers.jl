@@ -77,8 +77,8 @@ end
 # each on its own date, each with an independently-sampled attendee list
 # per section.
 @with_kw struct Category
-    id::Int                                    # unique across all categories
-    name::String = ""                          # should be unique across categories (used in filenames)
+    id::Int                                     # unique across all categories
+    name::String = ""                           # should be unique across categories (used in filenames)
     date_range::Tuple{Int,Int}                  # (first_day, last_day) draws may land on
     sections::Vector{Section}
     n_draws::Int                                # also the max times one person can attend this category
@@ -87,14 +87,15 @@ end
     age_weights::Vector{Float64} = Float64[]    # overrides EventConfig.age_dist if non-empty
     sex_weights::Vector{Float64} = Float64[]    # overrides EventConfig.sex_dist if non-empty
     core::Float64 = 0.0                         # fraction (0-1) of the smallest event's size that always attends every draw
-    loyalty::Float64 = 0.0                      # weight *= (1+loyalty)^n_prev_attendances for the random-draw pool; keep > -1
-    min_superspreaders::Int = 0                  # guaranteed superspreaders in the core group, if enough are available
+    loyalty::Float64 = 0.0                      # guaranteed, demographically-weighted fraction of non-core spots for past non-core attendees; pool never expires, no extra weight for repeat attendance
+    min_superspreaders::Int = 0                 # guaranteed superspreaders in the core group, if enough are available
+    cross_section_mean_contacts::Float64 = 0.0  # contacts with attendees of other sections of the same draw; 0 keeps sections isolated
+    cross_section_std_contacts::Float64 = 0.0
 end
 
 # The whole simulation's event setup.
 @with_kw struct EventConfig
     categories::Vector{Category}            # ids must be unique
-    transmission_rate::Float64               # legacy — validate_epidemic_state now uses actual attendee-average transmission_prob instead
     age_boundaries::Vector{Int}              # sorted ascending, e.g. [45, 65]
     age_dist::Vector{Float64}                # population-wide target age distribution; should sum to 1.0
     sex_dist::Vector{Vector{Float64}}        # population-wide target sex distribution per age group
@@ -112,6 +113,8 @@ end
     n::Int                      # target attendee count
     mean_contacts::Float64
     std_contacts::Float64
+    cross_section_mean_contacts::Float64 = 0.0
+    cross_section_std_contacts::Float64 = 0.0
 end
 
 

@@ -48,10 +48,9 @@ function GEMS.transmission_probability(
     idx_b = findfirst(==(tick), infected.event_dates)
     idx_b === nothing && return 0.0
 
-    # must be same event and same section
+    # must be same event (any section — see cross-section contacts in 4_Contacts.jl)
     if infecter.category_ids[idx_a] == infected.category_ids[idx_b] &&
-       infecter.draw_ids[idx_a] == infected.draw_ids[idx_b] &&
-       infecter.section_ids[idx_a] == infected.section_ids[idx_b]
+       infecter.draw_ids[idx_a] == infected.draw_ids[idx_b]
         return infecter.transmission_prob
     end
 

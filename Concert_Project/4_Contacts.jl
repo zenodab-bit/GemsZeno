@@ -56,6 +56,7 @@ end
     contactparameter::Float64 = 0.0
     cached_tick::Int16 = Int16(-1)
     rosters::Dict{Tuple{Int32,Int32,Int32},Vector{Individual}} = Dict{Tuple{Int32,Int32,Int32},Vector{Individual}}()
+    draw_rosters::Dict{Tuple{Int32,Int32},Vector{Individual}} = Dict{Tuple{Int32,Int32},Vector{Individual}}()
 end
 
 # Finds ego's event (if any) for this tick, then draws contacts from others
@@ -78,12 +79,15 @@ function GEMS.sample_contacts!(
 
     if event_contacts.cached_tick != tick
         empty!(event_contacts.rosters)
+        empty!(event_contacts.draw_rosters)
         for x in present_individuals
             isempty(x.event_dates) && continue
             jdx = findfirst(==(tick), x.event_dates)
             jdx === nothing && continue
-            key = (x.category_ids[jdx], x.draw_ids[jdx], x.section_ids[jdx])
-            push!(get!(() -> Individual[], event_contacts.rosters, key), x)
+            section_key = (x.category_ids[jdx], x.draw_ids[jdx], x.section_ids[jdx])
+            draw_key = (x.category_ids[jdx], x.draw_ids[jdx])
+            push!(get!(() -> Individual[], event_contacts.rosters, section_key), x)
+            push!(get!(() -> Individual[], event_contacts.draw_rosters, draw_key), x)
         end
         event_contacts.cached_tick = tick
     end
@@ -91,27 +95,33 @@ function GEMS.sample_contacts!(
     idx = findfirst(==(tick), ego.event_dates)
     idx === nothing && return indivs
 
-    key = (ego.category_ids[idx], ego.draw_ids[idx], ego.section_ids[idx])
-    roster = get(event_contacts.rosters, key, nothing)
-    roster === nothing && return indivs
+    section_key = (ego.category_ids[idx], ego.draw_ids[idx], ego.section_ids[idx])
+    draw_key = (ego.category_ids[idx], ego.draw_ids[idx])
 
-    others = filter(x -> x !== ego, roster)
-    isempty(others) && return indivs
+    section_roster = get(event_contacts.rosters, section_key, nothing)
+    same_section_others = section_roster === nothing ? Individual[] : filter(x -> x !== ego, section_roster)
 
-    num_of_contacts = min(
-        sample_n_contacts(rng, ego.mean_event_contacts[idx], ego.std_event_contacts[idx]),
-        length(others)
-    )
-    num_of_contacts <= 0 && return indivs
+    # within-section contacts, using this attendee's own section rate
+    n_within = min(sample_n_contacts(rng, ego.mean_event_contacts[idx], ego.std_event_contacts[idx]), length(same_section_others))
+    if n_within > 0
+        append!(indivs, sample(rng, same_section_others, n_within, replace=false))
+    end
 
-    chosen = sample(rng, others, num_of_contacts, replace=false)
-    resize!(indivs, num_of_contacts)
-    for i in 1:num_of_contacts
-        indivs[i] = chosen[i]
+    # cross-section contacts, using the category's cross-section rate (0 by
+    # default keeps sections fully isolated, matching prior behavior)
+    if ego.cross_section_mean_contacts[idx] > 0
+        draw_roster = get(event_contacts.draw_rosters, draw_key, nothing)
+        if draw_roster !== nothing
+            same_section_set = Set(section_roster === nothing ? Individual[] : section_roster)
+            cross_others = filter(x -> x !== ego && x ∉ same_section_set, draw_roster)
+            n_cross = min(sample_n_contacts(rng, ego.cross_section_mean_contacts[idx], ego.cross_section_std_contacts[idx]), length(cross_others))
+            if n_cross > 0
+                append!(indivs, sample(rng, cross_others, n_cross, replace=false))
+            end
+        end
     end
 
     return indivs
 end
-
 
 println("End Contacts")

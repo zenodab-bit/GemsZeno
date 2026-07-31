@@ -69,7 +69,9 @@ function sample_events(event_config::EventConfig, rng)
                     date=date,
                     n=n,
                     mean_contacts=section.mean_contacts,
-                    std_contacts=section.std_contacts
+                    std_contacts=section.std_contacts,
+                    cross_section_mean_contacts=category.cross_section_mean_contacts,
+                    cross_section_std_contacts=category.cross_section_std_contacts
                 ))
             end
         end
@@ -108,6 +110,8 @@ function prepare_population(event_config::EventConfig, rng)
     people.mean_event_contacts = [Float64[] for _ in 1:nrow(people)]
     people.event_dates = [Int32[] for _ in 1:nrow(people)]
     people.std_event_contacts = [Float64[] for _ in 1:nrow(people)]
+    people.cross_section_mean_contacts = [Float64[] for _ in 1:nrow(people)]
+people.cross_section_std_contacts = [Float64[] for _ in 1:nrow(people)]
 
     α_normal, β_normal = gamma_params(general_rate, std_rate)
     α_super, β_super = gamma_params(superspreader_rate, superspreader_std)
@@ -196,32 +200,29 @@ end
 # rest from a demographically-weighted random draw with loyalty-based
 # reweighting for repeat attendees.
 function assign_events!(people::DataFrame, events::Vector{Event}, event_config::EventConfig, rng)
-    loyal_pools = Dict{Int,Dict{Int,Int}}()
+    loyal_pools = Dict{Int,Set{Int}}()
     core_groups = Dict{Int,Vector{Int}}()
     all_core_members = Set{Int}()
     attendees = Dict{String,Vector{Int}}()
     base_candidates_by_category = Dict{Int,Vector{Int}}()
 
-    event_dates_col = people.event_dates   # hoisted; still the same mutable column, so later pushes stay visible
+    event_dates_col = people.event_dates
 
-    # --- PHASE 1: build each category's core group once ---
+    # --- PHASE 1: build each category's core group once (unchanged) ---
     for category in event_config.categories
         cat_events = filter(e -> e.category_id == category.id, events)
         isempty(cat_events) && continue
         min_n = minimum(e.n for e in cat_events)
-
-        # sized off the smallest event so core can never exceed any event's capacity
         n_core_total = round(Int, min_n * category.core)
 
         base_candidates = findall(
             (people.age .>= category.min_age) .&
             (people.age .<= category.max_age)
         )
-        base_candidates_by_category[category.id] = base_candidates   # cached, reused per event below
+        base_candidates_by_category[category.id] = base_candidates
 
         core_groups[category.id] = Int[]
 
-        # 1. superspreader core, placed first so it claims the min_superspreaders guarantee
         if category.min_superspreaders > 0
             available_supers = filter(idx ->
                     people.is_superspreader[idx] &&
@@ -237,7 +238,6 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             end
         end
 
-        # 2. regular core fills the rest of n_core_total via the same demographic weighting
         n_regular_core = max(0, n_core_total - length(core_groups[category.id]))
         if n_regular_core > 0
             core_so_far = Set(core_groups[category.id])
@@ -254,10 +254,9 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
         union!(all_core_members, core_groups[category.id])
     end
 
-    # --- PHASE 2: assign attendees event by event, in the given (chronological) order ---
+    # --- PHASE 2: assign attendees event by event, in chronological order ---
     for event in events
         category = event_config.categories[findfirst(c -> c.id == event.category_id, event_config.categories)]
-
         base_candidates = base_candidates_by_category[category.id]
 
         selected = Int[]
@@ -270,8 +269,29 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             append!(selected, available_core)
         end
 
-        # random pool with loyalty-weighted demographic sampling
         n_remaining = event.n - length(selected)
+
+        # loyalty: guaranteed, demographically-weighted fraction of the non-core
+        # spots goes to people who've attended this category as non-core before
+        # (any prior draw — pool only grows, never expires). Capped at n_remaining
+        # in addition to eligible pool size, so a misconfigured loyalty > 1 can't
+        # overflow the event beyond its target size (same overflow risk core had
+        # before it got the same kind of cap).
+        loyalty_selected = Int[]
+        if category.loyalty > 0.0 && haskey(loyal_pools, category.id) && n_remaining > 0
+            selected_set = Set(selected)
+            eligible = [idx for idx in loyal_pools[category.id]
+                        if idx ∉ selected_set && event.date ∉ event_dates_col[idx]]
+            n_loyalty = max(0, min(round(Int, category.loyalty * n_remaining), n_remaining, length(eligible)))
+            if n_loyalty > 0
+                loyalty_weights = compute_weights(people, eligible, category, event_config)
+                loyalty_selected = sample(rng, eligible, Weights(loyalty_weights), n_loyalty, replace=false)
+                append!(selected, loyalty_selected)
+            end
+        end
+
+        # random pool fills whatever's left
+        n_remaining_after_loyalty = event.n - length(selected)
         selected_set = Set(selected)
         remaining = filter(idx ->
                 idx ∉ selected_set &&
@@ -280,37 +300,22 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
 
         remaining_weights = compute_weights(people, remaining, category, event_config)
 
-        # loyalty: weight *= (1+loyalty)^n_prev, exponential — only applies to the
-        # random pool, core members already attend unconditionally
-        if category.loyalty != 0.0 && haskey(loyal_pools, category.id)
-            pool = loyal_pools[category.id]
-            for (i, idx) in enumerate(remaining)
-                n_prev = get(pool, idx, 0)
-                if n_prev > 0
-                    remaining_weights[i] *= (1 + category.loyalty)^n_prev
-                end
-            end
-            total = sum(remaining_weights)
-            remaining_weights = total > 0 ? remaining_weights ./ total : ones(length(remaining_weights)) ./ length(remaining_weights)
-        end
-
-        n_to_sample = min(n_remaining, length(remaining))
+        n_to_sample = min(n_remaining_after_loyalty, length(remaining))
+        random_selected = Int[]
         if n_to_sample > 0
-            new_selected = sample(rng, remaining, Weights(remaining_weights), n_to_sample, replace=false)
-            append!(selected, new_selected)
+            random_selected = sample(rng, remaining, Weights(remaining_weights), n_to_sample, replace=false)
+            append!(selected, random_selected)
         end
 
-        # update loyalty pool after selection, ready for this category's next event
+        # anyone selected today who isn't core becomes (or remains) loyalty-eligible
         if !haskey(loyal_pools, category.id)
-            loyal_pools[category.id] = Dict{Int,Int}()
+            loyal_pools[category.id] = Set{Int}()
         end
-        for idx in selected
-            loyal_pools[category.id][idx] = get(loyal_pools[category.id], idx, 0) + 1
-        end
+        union!(loyal_pools[category.id], loyalty_selected)
+        union!(loyal_pools[category.id], random_selected)
 
         attendees[event.id] = copy(selected)
 
-        # record this event on every attendee's own history
         for idx in selected
             push!(people.category_ids[idx], Int32(event.category_id))
             push!(people.draw_ids[idx], Int32(event.draw_id))
@@ -318,6 +323,8 @@ function assign_events!(people::DataFrame, events::Vector{Event}, event_config::
             push!(people.mean_event_contacts[idx], event.mean_contacts)
             push!(people.std_event_contacts[idx], event.std_contacts)
             push!(people.event_dates[idx], Int32(event.date))
+            push!(people.cross_section_mean_contacts[idx], event.cross_section_mean_contacts)
+            push!(people.cross_section_std_contacts[idx], event.cross_section_std_contacts)
         end
     end
 

@@ -1,4 +1,16 @@
-ENV["GKSwstype"] = "100"
+# ===========================================================================
+# 2_Interface.jl
+#
+# Run this file to run a simulation. Loads packages, includes every other
+# file, samples events and population from 1_UserConfig.jl's event_config,
+# runs the GEMS batch, then triggers analysis and (optionally) validation.
+#
+# The two settings below (n_simulations, run_validation) are the main
+# things to adjust here; everything else you'd want to change lives in
+# 1_UserConfig.jl.
+# ===========================================================================
+
+ENV["GKSwstype"] = "100"   # headless plotting backend; must be set before Plots loads
 
 import Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
@@ -15,10 +27,11 @@ include("4_Contacts.jl")
 include("5_Transmission.jl")
 
 # === Run ===
-n_simulations = 1
+n_simulations = 3
 run_validation = true
 
 events = sample_events(event_config, rng)
+# assign_events! requires chronological order — see its header comment in 3_Population.jl
 sort!(events, by = e -> (e.date, e.category_id, e.draw_id, e.section_id))
 
 println("\n=== Sampled Events ===")
@@ -47,7 +60,8 @@ b = Batch(
     configfile = joinpath(@__DIR__, "config_concert_covid.toml"),
     population = people,
     settingsfile = joinpath(@__DIR__, "Datastorage", "settings_Saalekreis.jld2"),
-    ind_extension = [:category_ids, :draw_ids, :section_ids, :mean_event_contacts, :std_event_contacts, :event_dates, :transmission_prob],
+    ind_extension = [:category_ids, :draw_ids, :section_ids, :mean_event_contacts, 
+    :std_event_contacts, :event_dates, :transmission_prob, :cross_section_mean_contacts, :cross_section_std_contacts],
     transmission_function = transmission_func,
     label = "MultiEvent simulation"
 )

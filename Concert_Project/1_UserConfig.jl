@@ -42,7 +42,9 @@ category_1 = Category(
     sex_weights = [0.6, 0.4],
     core = 0.0,
     loyalty = 0.0,
-    min_superspreaders = 0
+    min_superspreaders = 0,
+    cross_section_mean_contacts = 1.0,
+    cross_section_std_contacts = 2.0
 )
 
 # sport: small guaranteed core group (10%) including at least 1 superspreader, recurs 5 times
@@ -65,7 +67,6 @@ category_2 = Category(
 
 event_config = EventConfig(
     categories = [category_1, category_2],
-    transmission_rate = general_rate,
     age_boundaries = [45, 65],
     age_dist = [0.211, 0.347, 0.442],
     sex_dist = [[0.420, 0.580], [0.395, 0.605], [0.426, 0.574]]
