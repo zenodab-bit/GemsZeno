@@ -7,6 +7,9 @@ It is important to notice that the contacts happening at the events are properly
 To do so the code is using the global setting.
     The global setting contains the entire population, so for large population is very slow.
     Various precautions have been taken to have it run efficiently, but it has not been tested on larger population.
+GEMS's pathogen model has no reinfection or waning-immunity pathway — once someone is
+    infected, exposed, infectious, recovered, or dead, they stay in that trajectory. This
+    is relied on by the code that classifies attendees into compartments (7_Validation).
 
 
 The code is divided in 8 +1 files:
@@ -51,6 +54,10 @@ Then it moves to file 1_UserConfig.
         date_range: In which dates can events of this category happen.
             NOTE: Events of the same category cannot happen on the same day. The code will
                 check and try to pick different dates but it needs to have enough options.
+            NOTE: Different categories CAN land on the same date by coincidence. If that happens
+                and it creates a conflict (someone eligible for both), whichever category's event
+                gets processed first that day wins the person; the other backfills from its random
+                pool instead. Left as an accepted edge case rather than fixed.
         sections: Each category must have at least 1 declared section. Here is were the size and
             number of contacts are declared.
             There can be multiple sections, they must have unique ids.
@@ -98,4 +105,55 @@ Then it moves to file 1_UserConfig.
         event_config contains age boundaries that are used to categorize age in the same way for all events,
         age and sex dist are there as a generalization. If a category doesnt have age and sex weights, these values will be used instead.
 
-Then the code moves to file 3_Population
+Then the code moves to file 3_Population.
+    This file turns the categories from 1_UserConfig into actual events (assigning each
+        a real date and size), builds the population individuals will be assigned from,
+        and then assigns people to every event following the rules described above
+        (core, loyalty, random fill, demographic weighting).
+    Nothing here needs to be configured by the user — this is what happens automatically
+        once 1_UserConfig is set up.
+
+    Transmission probability is assigned once per person, at the very start, before any
+        events are even sampled. Each person gets a fixed value drawn from the transmission
+        and superspreader probabilities set in 1_UserConfig, based on whether they happen to
+        be a superspreader. This value never changes afterward, regardless of which events
+        (if any) that person later attends.
+
+    A few custom fields get added to every person at this point, which are what let the
+        rest of the code (contacts, transmission, validation) know who attended what:
+        category_ids, draw_ids, section_ids: which category/draw/section they attended,
+            one entry per event attended.
+        event_dates: the date of each event attended.
+        mean_event_contacts / std_event_contacts: their within-section contact rate at
+            each event attended.
+        cross_section_mean_contacts / cross_section_std_contacts: same, but for contacts
+            with people in other sections of the same event.
+        is_superspreader / transmission_prob: fixed at the start, as above, not tied to
+            any specific event.
+
+Then the code moves to file 4_Contacts.
+    This file defines how many contacts a person has in every setting, both normal ones
+        (household, office, etc.) and events. For events, it handles both the within-section
+        and cross-section contacts described above.
+    Nothing here needs to be configured by the user.
+
+Then the code moves to file 5_Transmission.
+    This file defines whether a contact actually results in an infection. For normal settings
+        it simply uses the infecter's own transmission_prob (fixed in 3_Population). For events,
+        it also checks that the infecter and infected attended the same event (any section).
+    Nothing here needs to be configured by the user.
+
+With 0_Helpers, 1_UserConfig, 3_Population, 4_Contacts and 5_Transmission all loaded, control
+    returns to 2_Interface, which samples the events, prepares and assigns the population, then
+    builds and runs the actual GEMS simulation using everything defined above.
+
+Once the simulation finishes, the code moves to file 6_Analysis.
+    This runs automatically and produces the text metrics and every plot (epidemic curves,
+        cases by setting, per-event SEIR bars, infected boxplot), saved to the Results folder.
+    Nothing here needs to be configured by the user.
+
+If run_validation is set to true (in 2_Interface), the code then moves to file 7_Validation.
+    This also runs automatically, and checks the simulation's actual outcomes (assignment
+        counts, compartment totals, demographics, epidemic state) against what's expected,
+        to help confirm everything is working correctly.
+    Not required for a normal run, but useful to catch mistakes.
