@@ -1,0 +1,41 @@
+File 0_Helpers Content:
+File 0 is one of the most technical, files there. Here is a recap of the functions and structs
+    inside it. The other chapters will be more descriptive.
+
+0.1 Numeric distribution helpers functions
+0.2 Age group helpers
+0.3 Event configuration model
+
+0.1 Numeric distribution helpers functions:
+function negbin_params -> gives the parameters needed for a negative binomial distribution,
+    starting from variance and mean.
+function sample_n_contacts -> draws the number of contacts following a negative binomial
+    distribution if possible, poisson if not.
+function gamma_params ->convert the transmission values given by the user into parameters used by
+    Julia
+
+0.2 Age group helpers:
+age_group:idx -> classifies age into groups
+function age_group_label_from_idx -> format age groups into labels
+age_grroup_label -> combines the two
+
+0.3 Event configration model
+struct Section -> lowest level of events. Represent different sides, behaviours or composition
+    of the same event.
+    NOTE: there is no cross infections between sections
+struct Event -> one gathering, produced by sample_events() (3_Population) not user constructed
+struct Category -> Represent a type of events from where a n_draws number of events are picked.
+    It contains the data from where to generate the events.
+    NOTE: If the number of draws is set to 1, a category can be used to represent a specific  event.
+    NOTE: Further explanation on the fields will be given in section 1_Userconfig
+struct EventConfig -> keeps all categories/events togheter. It has age and sex distribution
+    that works as fallback if they are missing from the category
+
+0.4 Config Validation
+function validate_config -> checks that the values given are of the right lenght, bounded and
+    ordered in the correct ways to prevent errors.
+
+0.5 Result types and aggregation
+const EventCounts -> constant to store the SEIR number of each event
+const EventStat -> constant to store statistics about each event
+function analyze_event_population -> 
