@@ -1,3 +1,23 @@
+Running a simulation
+    To configure a simulation, edit 1_UserConfig (see below for what each field does) and,
+        if needed, the two settings at the top of 2_Interface: n_simulations (how many
+        replicates to run) and run_validation (whether to run the checks in 7_Validation).
+    Then run 2_Interface.
+
+    Reproducibility: the same seed (set in the TOML) reproduces the same population, events,
+        and assignment every time. It does NOT reproduce the same epidemic outcome: GEMS's
+        own internal randomness for the actual disease spread is separate and not tied to
+        this seed. Re-running with the same seed gives the same setup, not the same result.
+
+    Every event's date must fall within the simulation's length (StopCriterion.limit in the
+        TOML). If a category's date_range allows a date beyond that, 2_Interface warns but
+        still runs. Results for that event will be inaccurate, since the simulation ends
+        before that day is reached.
+
+    Reading validation output (7_Validation): "n/a" for a Z-score means there's only one
+        simulation replicate, so there's no variance to compare against; it is not an error.
+
+
 The idea behind this code is to integrate the GEMS code to be able to have events
     where people can get extra infections and contacts.
 It is important to notice that the contacts happening at the events are properly extra contacts.
@@ -7,9 +27,6 @@ It is important to notice that the contacts happening at the events are properly
 To do so the code is using the global setting.
     The global setting contains the entire population, so for large population is very slow.
     Various precautions have been taken to have it run efficiently, but it has not been tested on larger population.
-GEMS's pathogen model has no reinfection or waning-immunity pathway — once someone is
-    infected, exposed, infectious, recovered, or dead, they stay in that trajectory. This
-    is relied on by the code that classifies attendees into compartments (7_Validation).
 
 
 The code is divided in 8 +1 files:
@@ -37,7 +54,7 @@ The code is divided in 8 +1 files:
 config_concert_covid
     This file is the classic TOML for GEMS simulations.
         NOTE: general_rate and contactparameter in this file are required to exist by GEMS but
-            are never actually read — they have no effect. The real values are set in 1_UserConfig.
+            are never actually read; they have no effect. The real values are set in 1_UserConfig.
 
 
 
@@ -49,7 +66,7 @@ Then it moves to file 1_UserConfig.
         id: Unique id used for internal processing. MUST BE UNIQUE otherwise events may be
             overwritten.
         name: Make it easier for the user to understand the outputs.
-            Should also be unique — some output filenames are built from it, and a collision
+            Should also be unique; some output filenames are built from it, and a collision
                 overwrites one category's output with another's.
         date_range: In which dates can events of this category happen.
             NOTE: Events of the same category cannot happen on the same day. The code will
@@ -57,7 +74,10 @@ Then it moves to file 1_UserConfig.
             NOTE: Different categories CAN land on the same date by coincidence. If that happens
                 and it creates a conflict (someone eligible for both), whichever category's event
                 gets processed first that day wins the person; the other backfills from its random
-                pool instead. Left as an accepted edge case rather than fixed.
+                pool instead.
+            NOTE: A person can also attend events from more than one category on different days.
+                Nothing ties someone to a single category. Being core/loyal to one category doesn't
+                exclude someone from being randomly drawn into another's events too.
         sections: Each category must have at least 1 declared section. Here is were the size and
             number of contacts are declared.
             There can be multiple sections, they must have unique ids.
@@ -80,6 +100,7 @@ Then it moves to file 1_UserConfig.
                 guarantee that all the members are always attending.
             The regular part follows the demographic distributions; the superspreader part
                 (below) is picked uniformly at random instead, not demographically weighted.
+            A person can be core for at most one category, never two at once.
         loyalty: this represent what percentage of the remaining non-core spots are reserved for
             people that already attended at least one non-core event of that category, core excluded.
             This pool only grows and never expires. Selection follows the demographic weights too;
@@ -88,16 +109,21 @@ Then it moves to file 1_UserConfig.
             how many superspreader minimum have to attend. Extras could be picked at random later.
         cross_section_mean_contacts: How many contacts a person in one section can have with a
             person in another section.
-            NOTE_1: This is the same value distributed across all sections.
-            NOTE_2: This are added on top of the contacts intra section and can still contact
+            NOTE: This is the same value distributed across all sections.
+            NOTE: This are added on top of the contacts intra section and can still contact
                 in the same section.
 
         NOTE: Superspreaders and core are picked ONCE per category, before any of its events are
-            processed — not "for the first event" specially. The same core then attends every
+            processed, not "for the first event" specially. The same core then attends every
             event of that category from the first one on, minus same-day conflicts.
             For each event, the order is: core first, then loyalty (demographic weights), then
                 random fill (demographic weights) for whatever's left. Anyone filled by loyalty
                 OR by random fill becomes loyalty-eligible for that category's later events.
+
+        NOTE: validate_config (run automatically after event_config is built, see below) catches
+            common mistakes like wrong-length weight lists, inverted ranges, and core outside [0,1], but
+            not everything is checked. See its comments in 0_Helpers for the current list of what
+            is and isn't validated.
 
     Then the user as to configure the events by specifing which cateogries are included in
         the simulation. This allows to have multiple events and easily exclude or include some
@@ -110,7 +136,7 @@ Then the code moves to file 3_Population.
         a real date and size), builds the population individuals will be assigned from,
         and then assigns people to every event following the rules described above
         (core, loyalty, random fill, demographic weighting).
-    Nothing here needs to be configured by the user — this is what happens automatically
+    Nothing here needs to be configured by the user; this is what happens automatically
         once 1_UserConfig is set up.
 
     Transmission probability is assigned once per person, at the very start, before any
